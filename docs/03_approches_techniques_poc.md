@@ -1,177 +1,257 @@
-# P11 — Comparaison et choix des approches IA pour le PoC
+# P11 — Approches techniques du PoC et justification batch / online
 
 **Entreprise :** Fashion-Insta  
-**Mission :** Réalisez le cadrage d'un projet IA — Partie 1  
-**Statut :** Proposition à valider avec Alicia et le mentor  
-**Catégorie pilote retenue :** Pantalons et jeans — 120 références (27 % du CA annuel indiqué)
+**Projet OpenClassrooms :** Réalisez le cadrage d'un projet IA — Partie 1, avec prolongement architectural pour la Partie 2  
+**Statut :** Proposition technique à valider avec Alicia, le Tech Lead Data et le mentor  
+**Catégorie pilote :** Pantalons et jeans — **120 références**, correspondant à **27 % du CA annuel déclaré**  
+**Document associé :** `docs/06_dimensionnement_couts_azure_partie2.md`
 
-## 1. Rappel de l'objectif du PoC
+> **Décision proposée :** générer et actualiser **en batch** les embeddings des photographies du catalogue ; calculer **à la demande (online)** l'embedding de la photographie transmise par un utilisateur et produire les recommandations. Le PoC peut simuler cette deuxième étape hors ligne pour évaluer la qualité, sans déployer immédiatement une API 24 h/24.
 
-Vérifier la faisabilité d'une **recommandation de vêtements à partir d'une photographie** : une personne fournit une photo d'un pantalon ou d'un jean et le système classe les articles les plus proches de son style parmi les références du catalogue Fashion-Insta.
+## 1. Objectif et périmètre du PoC
 
-Le PoC porte sur le **moteur de recommandation**, et non sur l'application mobile entière. Il ne nécessite ni entraînement d'un modèle à partir de zéro, ni création de comptes clients, ni essayage virtuel.
+Le problème métier est de permettre à un client de photographier un pantalon ou un jean qu'il apprécie, puis de retrouver **cinq références différentes** du catalogue Fashion-Insta présentant une proximité visuelle ou stylistique pertinente. Le résultat doit être utile aux équipes métier, mesurable et reproductible.
 
-> **Question de faisabilité :** une méthode d'IA peut-elle recommander, de manière reproductible et jugée pertinente par les métiers, des pantalons et jeans du catalogue à partir de photos représentatives des usages réels ?
+**Question de faisabilité :** une solution d'IA peut-elle retrouver des pantalons et jeans correspondant au style d'une photographie prise dans des conditions proches de l'usage réel ?
 
-## 2. Données d'entrée et de sortie communes aux deux approches
+Le PoC **ne consiste pas à produire l'application mobile** : la gestion des comptes, la garde-robe numérique, le paiement et l'essayage virtuel sont hors périmètre de cette première preuve de faisabilité. Aucun entraînement de modèle à partir de zéro n'est requis a priori.
 
-### Catalogue produit
+Les paramètres du PoC ne doivent pas être confondus avec ceux du futur système en production : **120 références et environ 40 photos de test** pour le pilote, puis extension éventuelle à l'ensemble du catalogue et à une fréquentation marketing estimée à **400 000 utilisateurs par an**.
 
-- Jusqu'à **120 références** de pantalons et jeans, à confirmer comme disponibles et exploitables.
-- **Plusieurs images par référence** lorsque disponibles (portées, non portées, angles différents).
-- Métadonnées existantes : description, prix, tags de style ; idéalement identifiant produit, couleur et coupe si récupérables.
-- Regroupement par **référence produit** afin de ne pas présenter plusieurs photos du même article comme des recommandations différentes.
+## 2. Données nécessaires et conditions de qualité
 
-### Photographies de test
+### 2.1. Données du catalogue
 
-- Hypothèse initiale : **30 à 50 photos** indépendantes du catalogue, prises dans des conditions proches des usages envisagés (éclairage, arrière-plan, article porté ou non).
-- Le pantalon ou le jean doit être suffisamment identifiable ; pour un premier test, un **recadrage manuel** peut être accepté et documenté. La détection ou segmentation automatique du vêtement est hors périmètre initial.
-- Images obtenues légalement, de préférence sans visage ni donnée personnelle inutile, avec consentement lorsque nécessaire.
+- Jusqu'à **120 références pantalons/jeans**, à confirmer comme disponibles et exploitables.
+- Plusieurs images par référence lorsqu'elles existent : vêtements portés, non portés et vues sous différents angles.
+- Identifiants produits, descriptions, prix, tags de style ; couleurs et coupes lorsque les attributs sont disponibles.
+- Une relation **image → référence produit**, indispensable pour ne pas recommander cinq photos du même pantalon.
+- Un contrôle des doublons, images manquantes, formats, orientation, éclairage et cohérence des tags.
 
-### Sortie attendue
+### 2.2. Photographies de test
 
-Pour chaque photo test, une **liste ordonnée de cinq références différentes** du catalogue (`Top 5`) jugées visuellement ou stylistiquement proches.
+- Hypothèse initiale : **30 à 50 photographies**, avec **40** comme volume de référence pour la préparation du protocole.
+- Photographies **indépendantes** des images du catalogue ; éviter les fichiers identiques ou quasi identiques.
+- Variété d'éclairages, arrière-plans, coupes, couleurs, vêtements portés ou non.
+- Pour un premier test, recadrage manuel possible et documenté ; la détection/segmentation automatique n'est pas un prérequis du PoC.
+- Données acquises et traitées légalement ; privilégier les photographies sans visage ni informations personnelles inutiles.
 
-**Point de vigilance :** « même style » n'est pas équivalent à « même couleur ». Le besoin doit être précisé avec les métiers (coupe, matière, silhouette, formalité, couleur, etc.).
+### 2.3. Sortie attendue
 
-## 3. Approche A — Embeddings visuels et recherche par similarité
+Pour chaque photographie, retourner un **Top 5 ordonné de références uniques**. La définition de « même style » devra être coconstruite avec les métiers : coupe, matière, silhouette, formalité, motifs et couleur. La proximité de couleur **ne suffit pas**, à elle seule, à démontrer une recommandation stylistique pertinente.
 
-### Principe
-
-Un modèle de représentation visuelle **préentraîné**, par exemple **CLIP / OpenCLIP** ou un modèle d'embeddings multimodaux compatible avec l'environnement Azure, convertit les images en vecteurs numériques (*embeddings*).
-
-1. Préparer les images du catalogue et associer chaque image à son identifiant produit.
-2. Générer puis stocker les embeddings des images du catalogue.
-3. Générer l'embedding d'une photographie test avec **le même modèle** et le même prétraitement.
-4. Calculer la **similarité cosinus** avec les embeddings du catalogue.
-5. Agréger les scores par référence produit (par exemple, meilleur score parmi ses images), puis retourner cinq références **distinctes**.
-6. Faire évaluer leur pertinence par des représentants des métiers.
-
-### Prérequis et services envisageables
-
-- **Azure Blob Storage** pour conserver les photographies autorisées et les métadonnées associées.
-- **Azure Machine Learning** ou un environnement de calcul Azure autorisé pour exécuter le modèle préentraîné et comparer les vecteurs.
-- **Azure AI Search (optionnel)** pour l'indexation et la recherche vectorielle à plus grande échelle. Pour **120 références**, un calcul de similarité sur une petite collection de vecteurs peut suffire ; imposer d'emblée un service d'indexation managé serait potentiellement disproportionné.
-
-### Avantages
-
-- Répond directement au besoin **image → recommandations de produits**.
-- Pas d'entraînement initial sur des milliers d'exemples annotés.
-- Classement automatique et reproductible à modèle et données identiques.
-- Inférence et calcul de similarité potentiellement économiques à petite échelle.
-
-### Limites et risques
-
-- Le modèle peut privilégier le décor, la posture ou les couleurs plutôt que le **style vestimentaire**.
-- Les photos personnelles et les photos commerciales présentent un **décalage de domaine**.
-- Les scores cosinus ne constituent **pas** des probabilités de pertinence ni une preuve que les utilisateurs apprécieront les produits.
-- Le classement est moins facile à expliquer en termes métier.
-
-## 4. Approche B — Modèle vision-langage et comparaison d'attributs
+## 3. Approche A — Embeddings visuels et similarité cosinus
 
 ### Principe
 
-Un **modèle multimodal capable de traiter des images** (par exemple, un modèle vision disponible via Azure OpenAI / Microsoft Foundry) produit une description structurée du vêtement :
+Un modèle préentraîné de représentation d'images, par exemple **CLIP/OpenCLIP** ou un équivalent approuvé dans l'environnement Azure, transforme chaque photographie en vecteur numérique (*embedding*). Les vecteurs du catalogue sont comparés à celui de la photo de test ; une **similarité cosinus** sert à classer les images, puis les résultats sont regroupés par référence produit.
 
-- Type d'article : pantalon ou jean.
-- Coupe : slim, droite, large, etc., lorsque visible.
-- Couleur dominante, motif, matière apparente.
-- Style : casual chic, streetwear, professionnel moderne, selon un vocabulaire défini avec les métiers.
+### Chaîne de traitement
 
-Les caractéristiques extraites de la photo test sont comparées aux descriptions, tags et/ou attributs extraits des images des produits. Une règle de classement pondérée ou une recherche hybride produit ensuite un **Top 5** de références différentes.
+1. Contrôler et préparer les images sources du catalogue.
+2. Générer leurs embeddings **en une ou plusieurs opérations batch**, en conservant l'identifiant et la version du produit.
+3. Stocker les vecteurs et les métadonnées ; ne recalculer que les articles modifiés lorsque cela est fiable.
+4. Pour une photo de test, générer un embedding avec **le même modèle, les mêmes poids et le même prétraitement**.
+5. Calculer la similarité cosinus ; trier, dédupliquer les références et appliquer les filtres métier disponibles.
+6. Retourner cinq références différentes et soumettre le classement aux évaluateurs métier.
 
-### Prérequis et services envisageables
+### Services Azure envisageables
 
-- **Modèle vision-langage déployé dans Azure OpenAI / Microsoft Foundry**, sous réserve de sa disponibilité, des droits d'accès, de la région et des coûts.
-- Métadonnées produit suffisamment cohérentes ; enrichissement de celles-ci si nécessaire.
-- Vocabulaire d'attributs contrôlé, règles de comparaison définies et processus de vérification.
-- **Azure AI Search (optionnel)** si une indexation hybride texte/vecteurs apporte une valeur réelle.
+- **Azure Blob Storage** : images du catalogue et images de test autorisées.
+- **Azure Machine Learning** : jobs d'encodage batch du catalogue ; environnement de test pour l'encodage des photos.
+- **Stockage de vecteurs / calcul de similarité** : recherche exhaustive simple pour 120 références ; **Azure AI Search**, optionnel, si la dimension et le filtrage le justifient.
+- **Azure Monitor / Key Vault** : journalisation technique et gestion des secrets dans la future architecture industrialisée.
 
-### Avantages
+### Avantages et limites
 
-- Les recommandations sont plus faciles à **expliquer** grâce à des attributs comme la coupe, le style ou la couleur.
-- Possibilité d'intégrer explicitement des règles métier.
-- Approche intéressante si les tags et descriptions produits sont exploitables.
+**Avantages :** pas de jeu d'entraînement massif initial, recherche image → image directe, embeddings du catalogue réutilisables, évaluation reproductible.
 
-### Limites et risques
+**Limites :** influence possible du décor ou de la posture, décalage entre photos clients et photos professionnelles, explicabilité limitée. Un score cosinus **n'est ni une probabilité d'achat ni une validation métier**.
 
-- Les descriptions générées peuvent être **inexactes, incohérentes ou incomplètes**.
-- Les catégories de style demeurent subjectives et doivent être définies.
-- L'analyse d'images peut augmenter le **coût et la latence** selon le modèle choisi et le nombre d'appels.
-- Une description textuelle seule ne permet pas nécessairement d'effectuer correctement une recherche **image → image** ; un classement explicite reste indispensable.
+## 4. Approche B — Vision-langage et comparaison d'attributs
 
-## 5. Comparaison des deux approches
+### Principe
+
+Un modèle multimodal capable d'analyser les photographies (selon les offres accessibles via **Azure OpenAI / Microsoft Foundry**) extrait une description structurée : type, coupe, couleur, matière apparente, silhouette et style. Ces attributs sont comparés aux tags et descriptions du catalogue, avec une règle de classement explicite ou une recherche hybride.
+
+### Chaîne de traitement
+
+1. Définir un **vocabulaire contrôlé** avec Alicia et les métiers (par exemple slim/droit/large, casual chic/streetwear/professionnel).
+2. Extraire ou contrôler les attributs des références du catalogue, idéalement **en batch**.
+3. Extraire les attributs de la photographie test à la demande lors du service interactif, ou hors ligne pour le PoC.
+4. Construire un score de rapprochement pondéré selon des règles métier documentées.
+5. Dédupliquer par produit, générer le Top 5 et mesurer sa pertinence face à l'approche A.
+
+### Avantages et limites
+
+**Avantages :** attributs intelligibles pour les métiers, prise en compte de règles métier, enrichissement possible des métadonnées.
+
+**Limites :** descriptions générées parfois fausses ou instables ; vocabulaire stylistique subjectif ; dépendance éventuelle à la qualité des tags ; coût et latence d'appels multimodaux à mesurer. La production d'une description n'implique **pas** automatiquement une bonne recherche d'images.
+
+**Services possibles :** offre vision-langage approuvée dans Azure, stockage des métadonnées, calcul de classement, Azure AI Search facultatif selon le besoin et la volumétrie. Disponibilité, région, quotas et conditions d'utilisation restent à confirmer.
+
+## 5. Comparaison des approches IA
 
 | Critère | A — Embeddings visuels | B — Vision-langage + attributs |
 |---|---|---|
-| Entrée | Photo | Photo |
-| Représentation | Vecteur numérique | Attributs et description structurée |
-| Classement | Similarité cosinus, puis regroupement par produit | Score de correspondance d'attributs ou recherche hybride |
-| Données annotées pour entraîner | Non requises au départ | Non requises au départ |
-| Explicabilité métier | Limitée | Plus forte |
-| Dépendance à la qualité des tags | Faible | Potentiellement élevée |
-| Risques | Sensibilité au contexte visuel ; décalage de domaine | Erreurs de description ; subjectivité des attributs |
-| Compatibilité Azure | Calcul Azure et éventuellement Azure AI Search | Modèle vision via Azure OpenAI/Foundry, éventuellement Azure AI Search |
-| Choix provisoire | **Approche de référence proposée** | **Comparateur / alternative** |
+| Entrée | Photographie | Photographie |
+| Représentation | Vecteur numérique | Description et attributs structurés |
+| Recherche | Similarité cosinus + regroupement par produit | Règles de score / recherche hybride |
+| Entraînement spécifique initial | Non requis | Non requis |
+| Explicabilité métier | Plutôt limitée | Plus importante |
+| Besoin de tags fiables | Faible à modéré | Plus important |
+| Risque principal | Proximité visuelle ≠ style | Attributs inexacts ou subjectifs |
+| Préparation catalogue | Batch | Batch |
+| Photo de l'utilisateur en production | Online | Online |
+| Choix pour le PoC | **Approche de référence proposée** | **Alternative à tester** |
 
-Les performances et les coûts réels **ne sont pas connus** : ils devront être vérifiés expérimentalement lors du PoC.
+**Décision provisoire :** commencer par **A**, tester **B** si le budget et les accès le permettent, puis retenir une solution sur les **résultats d'évaluation**, et non sur la seule sophistication du modèle.
 
-## 6. Protocole d'évaluation envisagé
+## 6. Choix d'architecture — démontrer pourquoi batch et online sont complémentaires
 
-Les **mêmes photographies de test** et les **mêmes références** seront utilisées pour comparer les deux approches.
+### 6.1. Le besoin dicte le mode d'exécution
 
-### Construction d'une référence métier (*ground truth*)
+| Traitement | Contrainte métier | Mode privilégié | Justification |
+|---|---|---|---|
+| Importation et nettoyage des images catalogue | Différable | **Batch** | Regrouper les traitements et fiabiliser les données |
+| Génération des embeddings catalogue | Différable ; changements ponctuels | **Batch** | Calculer une fois et actualiser uniquement les références concernées |
+| Reconstruction ou mise à jour de l'index | Différable | **Batch / pipeline incrémental** | Éviter les recalculs à chaque visite |
+| Photo envoyée par le client | Réponse attendue dans l'application | **Online** | Encoder la nouvelle photo pendant la requête |
+| Recherche Top 5 et filtres produits | Résultat interactif | **Online** | Répondre avec une faible latence |
+| Statistiques, rapports de pertinence, audits | Différable | **Batch** | Consolider hors du chemin de réponse client |
+| Essaye virtuel génératif | Potentiellement lourd et coûteux | **À arbitrer** | Synchrone si expérience interactive exigée ; asynchrone si délai acceptable |
 
-- Demander à **deux évaluateurs métier** de juger les recommandations : *non pertinent*, *partiellement pertinent*, *pertinent*.
-- Rédiger des consignes communes décrivant « même style » ; arbitrer les désaccords.
-- Considérer comme « pertinent » un article classé pertinent selon la règle de consensus définie.
-- Ne pas confondre une image test d'un produit catalogue avec une photo totalement indépendante : **éviter les doublons ou les photos quasi identiques** qui fausseraient les résultats.
+La distinction ne signifie pas que **« le batch est toujours meilleur »** : le batch est mieux adapté aux données déjà connues et aux travaux différables ; l'online est mieux adapté à une photographie nouvelle pour laquelle l'utilisateur attend une réponse immédiate.
 
-### Mesures proposées
+### 6.2. Schéma logique de bout en bout
 
-1. **Precision@5 (P@5)** : proportion moyenne d'articles jugés pertinents parmi les cinq recommandations de chaque photo test.
-2. **Success@5** : pourcentage de photos test pour lesquelles au moins **un** des cinq articles est jugé pertinent.
-3. **Analyse qualitative** : cas d'échec par coupe, couleur, arrière-plan, pose ou photographie portée/non portée.
-4. **Temps de réponse et coût estimé par requête** : critères complémentaires pour anticiper l'industrialisation, sans en faire une exigence de production dans ce PoC.
+```text
+                  PRÉPARATION DU CATALOGUE — BATCH
+Sources produits / images / tags
+             ↓
+Ingestion + contrôles de qualité (Data Engineer)
+             ↓
+Blob Storage → Job Azure ML batch → embeddings catalogue
+                                      ↓
+                       Vecteurs + index + métadonnées produits
+                                      │
+                                      │ réutilisés par toutes les requêtes
+                                      ↓
+                   RECOMMANDATION UTILISATEUR — ONLINE
+Photo utilisateur → service IA → embedding de la photo
+                                      ↓
+                         Recherche de similarité + filtres
+                                      ↓
+                           Top 5 de références différentes
+                                      ↓
+                             Application mobile existante
 
-### Critère de succès proposé — à faire valider par Alicia
+TRANSVERSE : sécurité/RGPD, mises à jour, monitoring, contrôle des coûts.
+```
 
-- **P@5 moyen ≥ 60 %** (en moyenne, au moins trois recommandations pertinentes sur cinq) ;
-- **Success@5 ≥ 80 %** ;
-- et une validation qualitative de l'utilité métier, avec des résultats examinés sur plusieurs situations photographiques.
+Ce schéma représente les composants Data/IA. L'interface mobile, les comptes et les achats existent hors de notre chiffrage. Pour un PoC non déployé, la branche « online » peut être **simulée** en traitant successivement les 40 photos de test et en mesurant les temps de traitement.
 
-**Ces seuils sont des propositions de cadrage, non des objectifs déjà validés par Fashion-Insta.** Leur faisabilité dépend notamment du nombre de vêtements réellement pertinents disponibles dans le catalogue pour chaque photo. Ils pourront être ajustés **avant le lancement des essais**, en concertation avec les métiers. Un comparatif avec une méthode de référence simple (par exemple filtres de tags disponibles) serait utile pour démontrer la valeur ajoutée de l'IA.
+### 6.3. Pourquoi ne pas recalculer le catalogue à chaque requête ?
 
-## 7. Protection des données et limites du périmètre
+- Hypothèse de production : **875 références × 3 images = 2 625 images catalogue**.
+- Hypothèse de trafic central : **2 000 000 recommandations/an**.
+- Une implémentation naïve recalculant tous les embeddings du catalogue à chaque requête réaliserait **2 625 × 2 000 000 = 5,25 milliards d'encodages d'images catalogue/an**, au lieu de réutiliser les embeddings déjà calculés.
+- Ce calcul représente un **contre-exemple théorique**, pas un scénario de coût réel ni la façon normale d'exploiter un endpoint online. Il justifie **le pré-calcul et la mise en cache** des représentations du catalogue.
 
-- Préférer des photos de vêtements **sans visage identifiable** ; limiter et sécuriser le traitement des photos personnelles.
-- Documenter l'origine, le consentement ou la base légale, les autorisations d'usage et les durées de conservation appropriées.
-- Prévoir suppression des photos de test à l'issue de leur usage autorisé et restriction des accès.
-- Ne pas créer d'application mobile, de gestion de compte, de garde-robe numérique ou d'essayage virtuel pendant le PoC.
-- Ne pas exiger un entraînement lourd, une infrastructure de production ni un service destiné aux 400 000 utilisateurs projetés.
+### 6.4. Conséquences techniques et économiques
 
-## 8. Décision technique provisoire
+- **Azure ML batch :** traitement asynchrone, calcul activé lors des jobs, possibilité de réduire le cluster à zéro en inactivité. Le coût de calcul dépend principalement des **heures de machine et de leur capacité**, outre les services annexes.
+- **Azure ML managed online :** inférence interactive, disponibilité et temps de réponse à garantir ; les **instances provisionnées sont facturées** même si le trafic est faible. L'autoscaling doit être dimensionné et ne supprime pas nécessairement la capacité minimale.
+- **Données partagées :** Blob Storage, base produit et éventuel service de recherche sont des postes indépendants ; **un cluster batch éteint ne signifie pas que l'ensemble de la solution coûte zéro**.
+- **Alternative à évaluer :** service de calcul à la demande pour l'inférence interactive lorsque le modèle et la latence le permettent. Ne pas additionner deux architectures qui se substituent l'une à l'autre dans un même budget.
 
-**Retenir l'approche A (embeddings visuels préentraînés + similarité cosinus) comme hypothèse principale de PoC**, et envisager l'approche B (vision-langage + comparaison d'attributs) comme comparateur si le calendrier, les ressources et les accès Azure le permettent.
+Références Microsoft : [principes et différences online/batch](https://learn.microsoft.com/fr-fr/azure/machine-learning/concept-endpoints?view=azureml-api-2), [fonctionnement et facturation batch](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints-batch?view=azureml-api-2), [coûts des managed online endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-view-online-endpoints-costs?view=azureml-api-2).
 
-Le choix final ne sera confirmé que par l'évaluation métier des résultats, leur reproductibilité et une appréciation du coût / effort.
+## 7. Démonstration attendue : qualité, latence et coûts
 
-## 9. Points à soumettre à Alicia ou au mentor
+Aucune économie n'est **prouvée** tant que les charges réelles et le SKU Azure ne sont pas mesurés. Le protocole proposé comporte trois essais complémentaires :
 
-1. Que signifie précisément « un vêtement du même style » pour Fashion-Insta ?
-2. Les 120 références disposent-elles d'images et de tags suffisamment exploitables ?
-3. Qui fournit les 30 à 50 photos test représentatives ?
-4. Les photos seront-elles prises **sur une personne** ou pourront-elles montrer **le vêtement seul** ?
-5. Qui seront les deux évaluateurs métier et quelle grille de pertinence utiliseront-ils ?
-6. Les seuils P@5 et Success@5 proposés sont-ils acceptables pour autoriser un PoC puis envisager la suite ?
-7. Quels services Azure, quotas et budgets sont autorisés pour l'expérimentation ?
+1. **Batch catalogue :** relever le nombre d'images traitées, les heures machine, l'usage CPU/GPU, la fréquence des mises à jour et le coût imputable au job.
+2. **Online utilisateur :** mesurer le temps de réponse p50/p95, le débit soutenable, le taux d'erreurs, les heures d'instances provisionnées et le coût mensuel attendu.
+3. **Pertinence :** mesurer Precision@5 et Success@5 sur les mêmes photos ; comparer au classement par tags sans modèle IA et, si réalisable, à l'approche B.
 
-## 10. Sources techniques pour justifier les choix
+La comparaison batch/online n'est **pas** le remplacement de l'inférence interactive par un job nocturne. Elle consiste à démontrer que **le calcul différable ne doit pas monopoliser une capacité online permanente**.
 
-- Microsoft Learn — [Multimodal search in Azure AI Search](https://learn.microsoft.com/en-us/azure/search/multimodal-search-overview) : recherches multimodales et embeddings directs image → vecteur.
-- Microsoft Learn — [Vector Search Overview](https://learn.microsoft.com/en-us/azure/search/vector-search-overview) : principe de la recherche vectorielle et filtres.
-- Microsoft Learn — [How to use vision-enabled chat models](https://learn.microsoft.com/azure/ai-services/openai/how-to/gpt-with-vision) : capacités d'analyse d'images des modèles multimodaux.
+| Indicateur | Mesure à relever | Règle de décision proposée |
+|---|---|---|
+| Durée batch d'actualisation | Minutes ou heures par job | Compatible avec la fréquence des changements catalogue |
+| Temps de réponse online | p50/p95, secondes | Compatible avec le parcours utilisateur ; cible à fixer avec Alicia |
+| Coût d'actualisation | Heures machine × prix SKU | Choisir le mode le plus économique à qualité équivalente |
+| Disponibilité des vecteurs | Fraîcheur de l'index | Ne pas recommander de référence retirée du catalogue |
+| Qualité des recommandations | P@5, Success@5 | Respecter les seuils métier préalablement convenus |
+
+## 8. Protocole de qualité du PoC
+
+### Référence métier (*ground truth*)
+
+- Définir une grille de style commune.
+- Faire juger les recommandations par **deux évaluateurs métier** : non pertinent, partiellement pertinent, pertinent.
+- Prévoir une règle de consensus en cas de désaccord.
+- Écarter les images de test identiques ou quasi identiques aux images commerciales.
+
+### Indicateurs et seuils proposés
+
+1. **Precision@5 (P@5)** : proportion moyenne d'articles pertinents parmi les cinq propositions, avec un regroupement par référence.
+2. **Success@5** : part des photographies pour lesquelles au moins un article pertinent apparaît dans les cinq recommandations.
+3. **Analyse qualitative** : échecs dus à la coupe, à la couleur, au décor, au port du vêtement ou au flou.
+4. **Mesures techniques** : latence observée, coût estimé par requête et coût de préparation du catalogue.
+
+**Hypothèses de seuils à valider avant les essais :** **P@5 ≥ 60 %** et **Success@5 ≥ 80 %**, accompagnés d'une appréciation métier positive. Leur pertinence dépend de la diversité du catalogue : on ne peut pas exiger trois références pertinentes si la photo n'en admet réellement qu'une.
+
+**Baseline :** classement déterministe à partir des tags/coupes/couleurs existants, sans modèle visuel. Cette comparaison sert à démontrer la **valeur ajoutée de l'IA** au-delà d'une recherche traditionnelle.
+
+## 9. Sécurité, RGPD et maintenance
+
+- Minimiser la collecte d'informations personnelles dans les photos ; ne pas placer d'images brutes de clients dans les logs.
+- Formaliser la finalité, la base légale, les autorisations d'accès, les durées de conservation et les modalités de suppression.
+- Favoriser le traitement éphémère des photographies de requête lorsque la constitution d'une garde-robe n'est pas demandée.
+- Gérer séparément la conservation volontaire des photos de garde-robe et la purge automatique prévue par le besoin métier.
+- Versionner les modèles, prétraitements et vecteurs pour éviter de comparer des embeddings incompatibles.
+- Automatiser l'actualisation incrémentale du catalogue et surveiller les changements de distribution des photographies.
+
+## 10. Répartition des rôles Data associée à la décision
+
+| Profil | Responsabilités batch | Responsabilités online / transverses |
+|---|---|---|
+| Data Engineer (2) | Ingestion, qualité, métadonnées, jobs d'actualisation, synchronisation catalogue/index | Accès aux données, suppression, fiabilité des données métier |
+| Data Scientist (3) | Choix du modèle, embeddings, comparaison A/B, tests pertinence | Contrôle de qualité, seuils, analyse des erreurs et dérive |
+| Tech Lead Data (1) | Architecture, interfaces, choix de stockage/index, revue de sécurité | Dimensionnement, arbitrages coût-latence et qualité de service |
+| MLOps Engineer (1) | Orchestration Azure ML batch, versioning, exécutions et alertes | Déploiement du modèle, monitoring, autoscaling, incidents et coût par requête |
+
+Ces effectifs décrivent **l'équipe disponible**, non l'affectation à temps plein de chaque personne.
+
+## 11. Décisions à confirmer avec Alicia et le Tech Lead
+
+1. Définition métier de « même style » et grille d'évaluation.
+2. Accès effectif aux images et tags des 120 références ; représentativité des photos de test.
+3. Qualité minimale et niveau d'automatisation du recadrage de vêtements.
+4. Fréquence de modification du catalogue : quotidienne, hebdomadaire, par événement ; délai maximal accepté pour actualiser les vecteurs.
+5. Latence interactive visée et niveau de disponibilité attendu.
+6. Volume réel et distribution temporelle des requêtes, y compris pics marketing.
+7. Services, quotas, région, types d'instances et budget Azure autorisés.
+8. Conditions RGPD des photographies clients et fonctionnalité de garde-robe.
+9. Déclencheurs d'adoption d'Azure AI Search plutôt que d'une recherche exhaustive simple.
+10. Conditions d'évaluation de l'essayage virtuel génératif, hors PoC de recommandation.
+
+## 12. Conclusion et sources techniques
+
+**Conclusion à défendre en soutenance :** pour Fashion-Insta, nous privilégions une **architecture hybride batch + online**. Les photographies et embeddings du catalogue, connus à l'avance, sont préparés et actualisés par jobs différables. La photographie envoyée par l'utilisateur est traitée à la demande pour renvoyer rapidement des recommandations. La décision vise à **éliminer les calculs redondants sans dégrader l'expérience client** et reste conditionnée à des tests de qualité, de latence et de coûts.
+
+### Sources officielles et documentation complémentaire
+
+- [Microsoft Learn — Endpoints online et batch Azure ML](https://learn.microsoft.com/fr-fr/azure/machine-learning/concept-endpoints?view=azureml-api-2).
+- [Microsoft Learn — Batch endpoints et coût de calcul](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints-batch?view=azureml-api-2).
+- [Microsoft Learn — Suivi des coûts managed online endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-view-online-endpoints-costs?view=azureml-api-2).
+- [Microsoft Learn — Azure AI Search, recherche vectorielle](https://learn.microsoft.com/en-us/azure/search/vector-search-overview).
+- [Azure Architecture Center — Choix de moteurs de recherche vectorielle](https://learn.microsoft.com/en-us/azure/architecture/guide/technology-choices/vector-search).
+- [Microsoft Learn — Rechercher dans des contenus multimodaux](https://learn.microsoft.com/en-us/azure/search/multimodal-search-overview).
+- [Microsoft Learn — Modèles capables d'analyser les images](https://learn.microsoft.com/azure/ai-services/openai/how-to/gpt-with-vision).
 
 ---
 
-**Suite prévue :** étape 5 — formaliser les critères de succès, les profils à mobiliser, les jours-homme et un calendrier court et défendable devant le COMEX.
+**Statut de la décision :** recommandé, **non encore confirmé expérimentalement**. La démonstration économique chiffrée et les hypothèses de charge figurent dans `06_dimensionnement_couts_azure_partie2.md`.
