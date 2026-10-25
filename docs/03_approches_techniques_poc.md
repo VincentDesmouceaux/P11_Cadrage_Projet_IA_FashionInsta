@@ -4,9 +4,9 @@
 **Projet OpenClassrooms :** Réalisez le cadrage d'un projet IA — Partie 1, avec prolongement architectural pour la Partie 2  
 **Statut :** Proposition technique à valider avec Alicia, le Tech Lead Data et le mentor  
 **Catégorie pilote :** Pantalons et jeans — **120 références**, correspondant à **27 % du CA annuel déclaré**  
-**Document associé :** `docs/06_dimensionnement_couts_azure_partie2.md`
+**Document associé :** `docs/06_dimensionnement_couts_azure_partie2.md` (scénarios de trafic, autoscaling, tests de charge et chiffrage Azure)
 
-> **Décision proposée :** générer et actualiser **en batch** les embeddings des photographies du catalogue ; calculer **à la demande (online)** l'embedding de la photographie transmise par un utilisateur et produire les recommandations. Le PoC peut simuler cette deuxième étape hors ligne pour évaluer la qualité, sans déployer immédiatement une API 24 h/24.
+> **Décision proposée :** générer et actualiser **en batch** les embeddings des photographies du catalogue ; calculer **à la demande (online)** l'embedding de la photographie transmise par un utilisateur et produire les recommandations. Le PoC peut simuler cette deuxième étape hors ligne pour évaluer la qualité, sans déployer immédiatement une API 24 h/24. Le **dimensionnement de production** relève du document 06 : aucune performance ni économie n’est considérée comme démontrée avant mesure.
 
 ## 1. Objectif et périmètre du PoC
 
@@ -119,7 +119,7 @@ Un modèle multimodal capable d'analyser les photographies (selon les offres acc
 | Photo envoyée par le client | Réponse attendue dans l'application | **Online** | Encoder la nouvelle photo pendant la requête |
 | Recherche Top 5 et filtres produits | Résultat interactif | **Online** | Répondre avec une faible latence |
 | Statistiques, rapports de pertinence, audits | Différable | **Batch** | Consolider hors du chemin de réponse client |
-| Essaye virtuel génératif | Potentiellement lourd et coûteux | **À arbitrer** | Synchrone si expérience interactive exigée ; asynchrone si délai acceptable |
+| Essayage virtuel génératif | Potentiellement lourd et coûteux | **À arbitrer** | Synchrone si expérience interactive exigée ; asynchrone si délai acceptable |
 
 La distinction ne signifie pas que **« le batch est toujours meilleur »** : le batch est mieux adapté aux données déjà connues et aux travaux différables ; l'online est mieux adapté à une photographie nouvelle pour laquelle l'utilisateur attend une réponse immédiate.
 
@@ -167,6 +167,36 @@ Ce schéma représente les composants Data/IA. L'interface mobile, les comptes e
 
 Références Microsoft : [principes et différences online/batch](https://learn.microsoft.com/fr-fr/azure/machine-learning/concept-endpoints?view=azureml-api-2), [fonctionnement et facturation batch](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints-batch?view=azureml-api-2), [coûts des managed online endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-view-online-endpoints-costs?view=azureml-api-2).
 
+### 6.5. Hypothèses de trafic et dimensionnement de l’inférence online
+
+Le Marketing prévoit **400 000 personnes utilisant l’application au moins une fois par an** à terme. Il ne s’agit **ni de 400 000 utilisateurs simultanés ni de 400 000 requêtes quotidiennes**. Pour relier l’architecture à un dimensionnement, le document 06 propose, à titre d’hypothèse centrale, **5 demandes de recommandation par utilisateur et par an**, soit **2 000 000 requêtes/an**.
+
+| Profil temporel *supposé* | Débit moyen durant la plage considérée | Pointe illustrative ×20 |
+|---|---:|---:|
+| Activité lissée 24 h/24 | ≈ 0,063 req/s | ≈ 1,27 req/s |
+| Activité concentrée sur 8 h/jour | ≈ 0,190 req/s | ≈ 3,81 req/s |
+
+Ces **deux profils sont alternatifs**, non cumulatifs ; le coefficient ×20 n’est pas issu d’une mesure. Une campagne marketing peut engendrer un pic plus important. Il faudra obtenir des historiques horaires ou des scénarios métier réalistes avant de figer la capacité.
+
+**Méthode de sizing, après benchmark :** mesurer le débit soutenable d’une instance (CPU ou GPU) *tout en respectant un objectif de latence p95* et les contraintes mémoire/erreurs, puis calculer une première borne :
+
+`nombre_instances ≈ plafond(débit_pointe / (débit_mesuré_par_instance × taux_utilisation_cible))`
+
+Exemple fictif : **2 req/s par instance**, **3,81 req/s** de pointe simulée et **70 %** d’utilisation cible donnent `plafond(3,81 / 1,4) = 3 instances`. Cette illustration **ne signifie pas que trois instances sont nécessaires** : il faut tester le modèle choisi, les quotas Azure et la concurrence réelle, puis considérer la redondance et le temps de démarrage.
+
+**Services Azure associés :** l’inférence interactive pourrait être hébergée dans un **managed online endpoint Azure ML**, avec autoscaling piloté par Azure Monitor et limites minimum/maximum explicites. Une variante à la demande (par exemple Azure Container Apps si le modèle s’y prête) peut être étudiée **à la place** de cet endpoint, non ajoutée automatiquement à son coût.
+
+### 6.6. Fiabilité, dégradation et limites de l’autoscaling
+
+- **Objectifs indicatifs, à faire valider :** réponse Top 5 `p95 ≤ 3 s` et disponibilité mensuelle `≥ 99,5 %`. Ce sont des **cibles proposées pour les essais**, pas des engagements de Fashion-Insta ni des SLA Azure.
+- **Pics de trafic :** contrôler le débit à l’entrée du service IA, surveiller les `429` et `5xx`, définir la temporisation des nouvelles tentatives et tester les délais de montée en charge. L’autoscaling ne peut pas absorber instantanément tous les pics.
+- **Catalogue :** publier le nouvel index uniquement après validation, maintenir une dernière version saine et empêcher que les filtres de stock recommandent un article retiré. L’actualisation batch peut être retardée, mais ne doit pas corrompre le service online.
+- **Dégradation maîtrisée :** si l’inférence n’est plus disponible, fournir une erreur explicite avec reprise contrôlée ; une recherche de secours par tags n’est envisageable qu’avec validation métier. Ne pas fabriquer de recommandations présentées comme issues du modèle.
+- **Traitements lourds :** une file asynchrone (par exemple Azure Service Bus) peut être étudiée **pour l’essayage virtuel génératif** ou des opérations différables, mais **pas imposée** au Top 5 interactif si elle compromet la latence.
+- **Vie privée :** gérer la conservation volontaire des photos de garde-robe séparément des clichés de requête ; tester la suppression des objets, métadonnées, index et caches concernés, sans images personnelles dans les logs.
+
+Ces mécanismes doivent figurer dans le **System Design de production** et être traités dans les essais de robustesse décrits dans le document 06. Le chiffrage final dépend notamment du nombre minimal d’instances online et du coût des services de haute disponibilité ou de supervision effectivement retenus.
+
 ## 7. Démonstration attendue : qualité, latence et coûts
 
 Aucune économie n'est **prouvée** tant que les charges réelles et le SKU Azure ne sont pas mesurés. Le protocole proposé comporte trois essais complémentaires :
@@ -185,6 +215,21 @@ La comparaison batch/online n'est **pas** le remplacement de l'inférence intera
 | Disponibilité des vecteurs | Fraîcheur de l'index | Ne pas recommander de référence retirée du catalogue |
 | Qualité des recommandations | P@5, Success@5 | Respecter les seuils métier préalablement convenus |
 
+### 7.1. Vérification de la scalabilité au stade MVP / Run (distincte du PoC)
+
+Le PoC valide avant tout la **pertinence des recommandations** sur 40 photos et 120 références. Il **ne prouve pas** à lui seul la capacité de production. Les essais de charge devront donc être réalisés pendant le MVP, puis contrôlés en Run initial :
+
+| Essai | Situation | Mesures et condition de décision |
+|---|---|---|
+| Référence | Trafic faible et stable | Latence p50/p95, débit, mémoire, erreurs et coût par requête |
+| Paliers de charge | Environ 1×, 5× et 20× le débit de référence choisi | Nombre d’instances, taux de `429`/`5xx`, p95 et stabilité |
+| Pic soudain | Campagne Marketing simulée | Délai d’autoscaling, rejet contrôlé, reprise |
+| Mise à jour batch | Ajout/retrait de produits pendant les requêtes | Fraîcheur et cohérence de l’index, absence de références retirées |
+| Incident | Job batch raté, endpoint indisponible ou index corrompu | Alertes, restauration du dernier index sain, dégradation maîtrisée |
+| RGPD | Suppression des images conservées avec autorisation | Contrôle d’effacement et absence de données brutes dans les logs |
+
+Le **Go / No-Go de passage au Run** tiendra compte des métriques métier, des objectifs de latence/disponibilité validés, de la robustesse, de la gestion RGPD et d’une estimation Azure fondée sur des SKU vérifiables. **Aucun de ces résultats n’est présenté comme déjà observé.**
+
 ## 8. Protocole de qualité du PoC
 
 ### Référence métier (*ground truth*)
@@ -199,7 +244,7 @@ La comparaison batch/online n'est **pas** le remplacement de l'inférence intera
 1. **Precision@5 (P@5)** : proportion moyenne d'articles pertinents parmi les cinq propositions, avec un regroupement par référence.
 2. **Success@5** : part des photographies pour lesquelles au moins un article pertinent apparaît dans les cinq recommandations.
 3. **Analyse qualitative** : échecs dus à la coupe, à la couleur, au décor, au port du vêtement ou au flou.
-4. **Mesures techniques** : latence observée, coût estimé par requête et coût de préparation du catalogue.
+4. **Mesures techniques du PoC** : latence observée dans l’environnement d’essai, coût estimé par requête et coût de préparation du catalogue. Les SLO et tests de charge de production sont évalués ultérieurement, au MVP.
 
 **Hypothèses de seuils à valider avant les essais :** **P@5 ≥ 60 %** et **Success@5 ≥ 80 %**, accompagnés d'une appréciation métier positive. Leur pertinence dépend de la diversité du catalogue : on ne peut pas exiger trois références pertinentes si la photo n'en admet réellement qu'une.
 
@@ -240,13 +285,15 @@ Ces effectifs décrivent **l'équipe disponible**, non l'affectation à temps pl
 
 ## 12. Conclusion et sources techniques
 
-**Conclusion à défendre en soutenance :** pour Fashion-Insta, nous privilégions une **architecture hybride batch + online**. Les photographies et embeddings du catalogue, connus à l'avance, sont préparés et actualisés par jobs différables. La photographie envoyée par l'utilisateur est traitée à la demande pour renvoyer rapidement des recommandations. La décision vise à **éliminer les calculs redondants sans dégrader l'expérience client** et reste conditionnée à des tests de qualité, de latence et de coûts.
+**Conclusion à défendre en soutenance :** pour Fashion-Insta, nous privilégions une **architecture hybride batch + online**. Les photographies et embeddings du catalogue, connus à l'avance, sont préparés et actualisés par jobs différables. La photographie envoyée par l'utilisateur est traitée à la demande pour renvoyer rapidement des recommandations. La décision vise à **éliminer les calculs redondants sans dégrader l'expérience client** et reste conditionnée à des tests de qualité, de latence, de montée en charge et de coûts. Les scénarios chiffrés et les règles de dimensionnement correspondants sont détaillés dans le document 06, sans présumer de performances mesurées.
 
 ### Sources officielles et documentation complémentaire
 
 - [Microsoft Learn — Endpoints online et batch Azure ML](https://learn.microsoft.com/fr-fr/azure/machine-learning/concept-endpoints?view=azureml-api-2).
 - [Microsoft Learn — Batch endpoints et coût de calcul](https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints-batch?view=azureml-api-2).
 - [Microsoft Learn — Suivi des coûts managed online endpoints](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-view-online-endpoints-costs?view=azureml-api-2).
+- [Microsoft Learn — Autoscaling des endpoints Azure ML](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-autoscale-endpoints?view=azureml-api-2).
+- [Microsoft Learn — Diagnostic des endpoints online et erreurs 429](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-troubleshoot-online-endpoints).
 - [Microsoft Learn — Azure AI Search, recherche vectorielle](https://learn.microsoft.com/en-us/azure/search/vector-search-overview).
 - [Azure Architecture Center — Choix de moteurs de recherche vectorielle](https://learn.microsoft.com/en-us/azure/architecture/guide/technology-choices/vector-search).
 - [Microsoft Learn — Rechercher dans des contenus multimodaux](https://learn.microsoft.com/en-us/azure/search/multimodal-search-overview).

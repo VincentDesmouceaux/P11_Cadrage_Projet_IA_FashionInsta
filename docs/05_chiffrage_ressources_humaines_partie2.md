@@ -1,34 +1,46 @@
 # P11 — Partie 2 : estimation des charges et coûts humains Data/IA
 
-> **Statut : hypothèses de cadrage à valider par Alicia, le Tech Lead et le COMEX.**  
-> **Périmètre : uniquement l'équipe Data/IA ; hors développement de l'application mobile, marketing et achat en ligne.**  
-> **Source des tarifs :** `sources/P11_Profils_Data.pdf` (document fourni par Fashion-Insta).
+**Entreprise :** Fashion-Insta  
+**Mission :** Réalisez le cadrage d'un projet IA — Partie 2  
+**Statut :** estimation de cadrage, non validée par Alicia, le Tech Lead Data ou le COMEX  
+**Périmètre financier :** uniquement les activités Data & IA ; hors développement de l'application mobile, comptes clients, paiement, publicité et coûts commerciaux.  
+**Documents associés :** `03_approches_techniques_poc.md`, `06_dimensionnement_couts_azure_partie2.md`, `07_analyse_roi_rentabilite_partie2.md`.
 
-## 1. Objectif
+> **Décision d'architecture prise en compte :** préparer et actualiser les embeddings du catalogue en **batch**, servir l'analyse d'une nouvelle photographie et le Top 5 en **online** lorsque l'application sera en production. Le PoC peut simuler la partie interactive hors ligne, sans endpoint permanent.
 
-Estimer la charge de réalisation en **jours-homme (JH)** et son coût salarial interne pour le programme de recommandation vestimentaire de Fashion-Insta, en cohérence avec la timeline précédemment proposée :
+## 1. Objectif, phases et conventions
 
-- **PoC :** 3 semaines, sur 120 références de pantalons et jeans.
-- **MVP Data/IA :** 10 semaines, avec industrialisation du moteur et des flux de données.
-- **Run initial :** 4 semaines de stabilisation après mise en service.
-- **Run récurrent :** exploitation continue au-delà des 17 semaines du planning de lancement.
+L'objectif est de traduire les composants du System Design en **charges de travail (jours-homme, JH)** et en **coûts salariaux internes**, pour planifier les compétences nécessaires et alimenter l'étude de rentabilité.
 
-La disponibilité effective des collaborateurs, les dates précises et la couverture fonctionnelle du MVP restent à confirmer.
+| Phase | Semaines | Durée | Finalité / jalon |
+|---|---|---:|---|
+| **PoC** | S1–S3 | 3 semaines | Démontrer la faisabilité sur 120 références pantalons/jeans, 40 photos de test ; décision Go/No-Go |
+| **MVP Data/IA** | S4–S13 | 10 semaines | Industrialiser alimentation catalogue, préparation batch, moteur online, préférences/feedback, sécurité et monitoring |
+| **Run initial** | S14–S17 | 4 semaines | Mise en service progressive, réglages de capacité, stabilisation et bilan |
+| **Run récurrent** | À partir de S18 | Continu | Exploitation, supervision, actualisation des données et modèles, maîtrise des coûts |
 
-## 2. Tarifs officiels des profils internes
+- **1 JH** = une journée de travail imputée à un profil, **pas** une journée calendaire écoulée. Une phase de 10 semaines peut mobiliser plusieurs personnes en parallèle.
+- **17 semaines** est la durée envisagée pour PoC + MVP + Run initial, **pas** le temps de préparation de la présentation au COMEX.
+- Les effectifs représentent l'équipe interne disponible, **pas un engagement à temps plein** sur ce projet.
+- Les hypothèses de charges, de calendrier et de périmètre MVP doivent être validées avant toute approbation budgétaire.
 
-| Profil | Effectif disponible | Coût salarial journalier |
+## 2. Profils et tarifs internes de référence
+
+*Source : document officiel fourni par Fashion-Insta, `sources/P11_Profils_Data.pdf`.*
+
+| Profil | Effectif | Coût salarial journalier |
 |---|---:|---:|
-| Data Scientist | 3 | 350 € / JH |
-| Data Engineer | 2 | 370 € / JH |
-| Tech Lead Data | 1 | 400 € / JH |
-| MLOps Engineer | 1 | 360 € / JH |
+| Data Scientist (DS) | 3 | **350 € / JH** |
+| Data Engineer (DE) | 2 | **370 € / JH** |
+| Tech Lead Data (TL) | 1 | **400 € / JH** |
+| MLOps Engineer | 1 | **360 € / JH** |
+| **Total équipe** | **7 personnes** | — |
 
-Ces tarifs sont ceux du document de Fashion-Insta. Ce sont des coûts internes d'allocation de ressources et non nécessairement des décaissements nouveaux.
+Ces coûts correspondent à une **valorisation salariale des ressources internes**. Ils ne représentent pas nécessairement une dépense de trésorerie additionnelle si les salariés sont déjà en poste ; pour le ROI, la convention de coût interne doit être validée avec la finance et appliquée de façon cohérente.
 
-## 3. Répartition des charges par phase
+## 3. Répartition des jours-homme, par phase et par profil
 
-| Profil | PoC (3 sem.) | MVP (10 sem.) | Run initial (4 sem.) | Total JH |
+| Profil | PoC (3 sem.) | MVP (10 sem.) | Run initial (4 sem.) | **Total JH** |
 |---|---:|---:|---:|---:|
 | Data Scientist | 16 | 75 | 10 | **101** |
 | Data Engineer | 6 | 55 | 8 | **69** |
@@ -36,35 +48,68 @@ Ces tarifs sont ceux du document de Fashion-Insta. Ce sont des coûts internes d
 | MLOps Engineer | 4 | 30 | 14 | **48** |
 | **Total** | **30** | **180** | **36** | **246** |
 
-> La phase PoC conserve l'estimation antérieure de **30 JH**. Le détail par profil est une nouvelle hypothèse à valider ; ce n'est pas un relevé d'activité.
+Cette matrice **conserve les hypothèses financières du cadrage déjà utilisé**. Le détail d'activités ci-dessous propose une ventilation opérationnelle qui reste à confirmer, sans modifier les totaux.
 
-### Rôle des profils pendant chaque phase
+### 3.1. PoC — 30 JH, 3 semaines
 
-**PoC**
-- **Data Scientist :** sélectionner/comparer les approches, définir les métriques, évaluer la pertinence des recommandations.
-- **Data Engineer :** obtenir et fiabiliser les données des 120 références et le lot de photos de test.
-- **Tech Lead Data :** valider l'architecture et les choix techniques.
-- **MLOps Engineer :** préparer un environnement de démonstration reproductible et la traçabilité des expérimentations.
+| Profil | Activités proposées | JH |
+|---|---|---:|
+| DS | Baseline sans IA (3), embeddings/Top 5 (7), évaluation métier et analyse des erreurs (6) | **16** |
+| DE | Extraction/catalogue (3), contrôle qualité et dédoublonnage (2), accès/traçabilité (1) | **6** |
+| TL | Choix d'architecture (2), exigences d'interface/sécurité (1), revue Go/No-Go (1) | **4** |
+| MLOps | Environnement expérimental (2), reproductibilité (1), mesure initiale du coût de calcul (1) | **4** |
+| **Total** | | **30** |
 
-**MVP Data/IA**
-- **Data Scientist :** améliorer le classement visuel, intégrer les préférences et retours utilisateurs, organiser l'évaluation.
-- **Data Engineer :** industrialiser l'ingestion du catalogue, les pipelines et les règles de qualité/conservation des données.
-- **Tech Lead Data :** superviser les interfaces avec le logiciel mobile existant, la sécurité et la cohérence de l'architecture.
-- **MLOps Engineer :** automatiser les déploiements, mettre en place la supervision, le suivi des modèles et le contrôle des coûts.
+**Livrables :** préparation des photos et métadonnées, comparaison baseline/approches IA, Precision@5, Success@5, relevé de latence et de ressources, décision Go/No-Go. Le travail peut être démontré sans déploiement d'un endpoint online 24 h/24.
 
-**Run initial**
-- **Data Scientist :** analyser la qualité des recommandations et les éventuelles dérives.
-- **Data Engineer :** stabiliser l'alimentation du catalogue et les traitements de données.
-- **Tech Lead Data :** arbitrer et traiter les risques d'architecture.
-- **MLOps Engineer :** gérer la disponibilité, les alertes, les performances et les procédures d'exploitation.
+### 3.2. MVP Data/IA — 180 JH, 10 semaines
 
-L'essayage virtuel génératif et les fonctionnalités avancées devront être **étudiés puis priorisés** : leur industrialisation complète ne doit pas être supposée incluse dans ces charges sans spécification et estimation spécifiques.
+| Profil | Activités proposées | JH |
+|---|---|---:|
+| DS | Amélioration embeddings/modèle (30), classement/filtres/personnalisation (25), évaluation qualité et retours (20) | **75** |
+| DE | Ingestion et qualité catalogue (25), mises à jour incrémentales/index (15), stockage, droits, rétention et purge (15) | **55** |
+| TL | Architecture et revues (8), interfaces/Data-Software (4), performance et disponibilité (4), sécurité/RGPD (4) | **20** |
+| MLOps | Orchestration des jobs batch (8), serving online et déploiement (10), observabilité et tests de charge (8), suivi coûts (4) | **30** |
+| **Total** | | **180** |
 
-## 4. Coûts salariaux estimés
+**Livrables :** synchronisation catalogue, jobs batch d'embeddings, index ou recherche simple documentée, endpoint/service de recommandation interactive, filtres métier, remontée de feedback, contrôles RGPD, monitoring et premier test de charge.
 
-Formule : **coût de phase = somme(JH du profil × coût journalier du profil)**.
+Les fonctions d'**essayage virtuel génératif**, de changement avancé de style et d'analyse automatique de blogs/tendances font l'objet d'un **arbitrage séparé** : leur industrialisation n'est **pas incluse** dans ces 180 JH.
 
-| Profil | PoC | MVP | Run initial | Total |
+### 3.3. Run initial — 36 JH, 4 semaines
+
+| Profil | Activités proposées | JH |
+|---|---|---:|
+| DS | Analyse de pertinence et des cas d'échec (6), suivi de dérive (4) | **10** |
+| DE | Fiabilité de la synchronisation catalogue (6), contrôle purge/rétention (2) | **8** |
+| TL | Arbitrages incidents et disponibilité (2), revue d'architecture et bilan (2) | **4** |
+| MLOps | Déploiement/rollbacks (4), réglages capacité/latence (5), monitoring (3), alertes/incidents (2) | **14** |
+| **Total** | | **36** |
+
+**Livrables :** bilan des temps de réponse p50/p95, taux d'erreurs, disponibilité et coût par requête ; procédures d'incident, alertes, reprise et décision de passage en Run récurrent.
+
+## 4. Rôles et responsabilités sur les briques Data/IA
+
+Le tableau associe un **pilote de construction**, un **pilote de maintenance** et les contributions clés. Il reprend le découpage du System Design et évite d'attribuer le développement mobile à l'équipe Data.
+
+| Brique | Construction — pilote | Maintenance — pilote | Contributeurs / points de contrôle |
+|---|---|---|---|
+| Ingestion et qualité du catalogue | DE | DE | TL valide schémas, accès et fiabilité |
+| Blob, métadonnées, index et filtres | DE | DE | DS définit attributs et pertinence ; MLOps surveille la disponibilité technique |
+| Embeddings catalogue **batch** | DS (modèle) + DE (données) | DE + MLOps | MLOps orchestre les jobs ; TL arbitre les coûts/versions |
+| Embedding photo client et recommandations **online** | DS (qualité) + MLOps (serving) | MLOps | TL fixe exigences latence/capacité ; DS suit les métriques |
+| Préférences et retours utilisateur | DS + DE | DE | Product/métiers définissent les règles et le consentement |
+| Surveillance, dérive, CI/CD, autoscaling, reprise | MLOps | MLOps | DS suit pertinence ; TL valide SLA et sécurité |
+| Suppression, durée de conservation et traçabilité | DE | DE | TL, référents RGPD et sécurité : validation transverse |
+| Essayage virtuel génératif (option) | À étudier : DS + TL | À définir | Charge et coûts **hors scénario central** |
+
+**Acteurs non chiffrés dans la présente matrice :** Alicia (sponsor), équipe Product/Software, représentants métier chargés de juger les recommandations, référent RGPD/sécurité, finance. Leur coordination est nécessaire, mais leurs charges ne figurent pas dans les quatre tarifs Data fournis ; ce **périmètre budgétaire partiel** doit être explicite devant le COMEX.
+
+## 5. Coûts humains : recalcul détaillé
+
+Formule : `coût_phase = somme(JH_profil × tarif_journalier_profil)`.
+
+| Profil | PoC | MVP | Run initial | **Total** |
 |---|---:|---:|---:|---:|
 | Data Scientist | 5 600 € | 26 250 € | 3 500 € | **35 350 €** |
 | Data Engineer | 2 220 € | 20 350 € | 2 960 € | **25 530 €** |
@@ -72,66 +117,106 @@ Formule : **coût de phase = somme(JH du profil × coût journalier du profil)**
 | MLOps Engineer | 1 440 € | 10 800 € | 5 040 € | **17 280 €** |
 | **Total** | **10 860 €** | **65 400 €** | **13 100 €** | **89 360 €** |
 
-**Budget humain de lancement prévisionnel : 89 360 €**, répartis sur 17 semaines. Ce montant comprend le Run initial de stabilisation, mais **ne comprend pas** les coûts des services cloud Azure, les outils tiers, ni les coûts récurrents du Run au-delà de la semaine 17.
+**À retenir :** **246 JH** et **89 360 €** de charge humaine de construction et lancement sur **17 semaines**. Cette somme inclut déjà les quatre semaines de **Run initial**.
 
-## 5. Hypothèse de Run récurrent après la semaine 17
+## 6. Run récurrent après stabilisation (à partir de S18)
 
-| Profil | Charge mensuelle proposée | Coût mensuel |
+| Profil | JH/mois | Coût salarial mensuel |
 |---|---:|---:|
-| Data Scientist | 4 JH / mois | 1 400 € |
-| Data Engineer | 4 JH / mois | 1 480 € |
-| Tech Lead Data | 2 JH / mois | 800 € |
-| MLOps Engineer | 8 JH / mois | 2 880 € |
-| **Total** | **18 JH / mois** | **6 560 € / mois** |
+| Data Scientist | 4 | 1 400 € |
+| Data Engineer | 4 | 1 480 € |
+| Tech Lead Data | 2 | 800 € |
+| MLOps Engineer | 8 | 2 880 € |
+| **Total** | **18 JH/mois** | **6 560 €/mois** |
 
-**Ordre de grandeur annuel : 78 720 €/an** de charge salariale Run, hors Azure et autres charges. Cette hypothèse s'applique **après les 4 semaines de Run initial** pour éviter de compter deux fois la même période.
+- **Coût Run humain annualisé : 78 720 €/an**, uniquement pour **12 mois complets** après la stabilisation.
+- En année de lancement, **proratiser** les mois réels après S17 ; ne pas additionner mécaniquement 89 360 € et 78 720 € comme s'ils concernaient la même période.
+- La charge MLOps peut croître avec une exigence de disponibilité renforcée, la multiplication des endpoints, la génération d'images, la supervision des pics et la complexité des incidents.
 
-## 6. Capacité et faisabilité du planning
+## 7. Capacité réelle de l'équipe et faisabilité temporelle
 
-À titre indicatif, chaque collaborateur peut représenter au plus environ 5 JH par semaine s'il est affecté à plein temps. Nos hypothèses restent sous les capacités maximales de l'équipe :
+Hypothèse de capacité maximale théorique : **5 JH par personne et par semaine** si affectation à temps plein, hors congés, réunions internes et autres projets.
 
-- **PoC (3 semaines)** : 30 JH répartis sur 7 personnes ; charge partielle.
-- **MVP (10 semaines)** : 180 JH répartis sur 7 personnes ; charge soutenue, compatible en théorie avec les effectifs disponibles.
-- **Run initial (4 semaines)** : 36 JH répartis sur 7 personnes ; charge de stabilisation.
+| Phase / profil | JH prévus | Capacité maximale théorique | Charge moyenne représentée |
+|---|---:|---:|---:|
+| PoC — DS (3) | 16 | 45 | 36 % |
+| PoC — DE (2) | 6 | 30 | 20 % |
+| PoC — TL (1) | 4 | 15 | 27 % |
+| PoC — MLOps (1) | 4 | 15 | 27 % |
+| MVP — DS (3) | 75 | 150 | 50 % |
+| MVP — DE (2) | 55 | 100 | 55 % |
+| MVP — TL (1) | 20 | 50 | 40 % |
+| MVP — MLOps (1) | 30 | 50 | 60 % |
+| Run initial — DS (3) | 10 | 60 | 17 % |
+| Run initial — DE (2) | 8 | 40 | 20 % |
+| Run initial — TL (1) | 4 | 20 | 20 % |
+| Run initial — MLOps (1) | 14 | 20 | 70 % |
 
-La faisabilité réelle dépend de la disponibilité de chaque personne, de ses autres projets et des dépendances externes.
+**Interprétation :** la charge prévue respecte les capacités maximales *théoriques* de chaque profil. Cela ne prouve pas la disponibilité effective des personnes ni la faisabilité de toutes les dépendances. Le **MLOps**, seul sur son poste, constitue un point de vigilance, en particulier pendant le Run initial (14 JH sur 20 jours ouvrés).
 
-## 7. Coûts technologiques à chiffrer dans l'étape suivante
+**Conditions de faisabilité :** disponibilité nominative, suppléance/astreinte en production si nécessaire, délais d'accès Azure, données catalogue effectivement exploitables, validation juridique des photos, capacité du Product/Software à consommer les interfaces, calendrier des évaluateurs métier.
 
-Les services techniques envisagés comprennent les postes suivants, sans attribuer de prix non vérifiés :
+## 8. Lien avec la scalabilité, le batch et l'online
 
-- **Stockage des images et données** : Azure Blob Storage, stockage opérationnel et éventuelles sauvegardes.
-- **Ingestion et orchestration** : pipelines d'intégration du catalogue et événements utilisateurs.
-- **Calcul ML** : extraction d'embeddings, expérimentation, réentraînement éventuel et traitements batch.
-- **Serving et recherche** : API de recommandation, index vectoriel et base de données de caractéristiques.
-- **Génération d'images** : option pour l'essayage virtuel, sous réserve de faisabilité et de coûts.
-- **Exploitation** : métriques, journaux, alertes, gestion des secrets, réseau et sécurité.
+Notre modèle d'effort tient compte d'une **architecture hybride** :
 
-### Données indispensables pour un coût Azure défendable
+- Le catalogue est connu à l'avance : les DE industrialisent les sources, les DS choisissent les représentations visuelles et le MLOps orchestre les **jobs batch**, exécutés en cas de modification pertinente, avec réindexation complète si le modèle change.
+- Une photographie utilisateur est nouvelle : le DS spécifie l'encodage et le ranking, le MLOps déploie le **service online** et gère capacité minimale, autoscaling, supervision et reprise.
+- Pour le **PoC**, il suffit de simuler les requêtes successivement : aucun coût humain dédié à un service haute disponibilité 24/7 n'est supposé nécessaire.
+- Pour le **MVP/Run**, les tests de charge (p50/p95, débit, erreurs) et les scénarios d'usage doivent confirmer l'affectation. Le marketing prévoit **400 000 utilisateurs actifs sur une année** à terme, pas 400 000 requêtes simultanées.
+- Les simulations du document 06 utilisent notamment un scénario central de **5 recommandations par utilisateur et par an**, soit **2 000 000 demandes/an**, ainsi qu'un scénario de pointe : ces paramètres ne sont **pas des données marketing observées**.
 
-- Région d'hébergement Azure et environnements (test, préproduction, production).
-- **Nombre de recommandations par utilisateur actif** et fréquence d'usage.
-- Nombre et résolution des photographies envoyées par requête.
-- Nombre d'articles, d'images par article et fréquence de mise à jour du catalogue.
-- Cible de latence, disponibilité, stockage et conservation des images.
-- Fréquence d'utilisation éventuelle de l'essayage virtuel génératif.
+**Attention financière :** le recours au batch peut limiter les heures de calcul réservées à l'actualisation du catalogue. Il **ne supprime pas** le coût ni l'effort d'exploitation du service online ou des composants persistants (stockage, index, journaux).
 
-L'estimation marketing de **400 000 utilisateurs utilisant l'application au moins une fois par an** ne suffit pas, à elle seule, à déterminer les requêtes par seconde ou le coût cloud. Des scénarios d'usage devront être établis.
+## 9. Consolidation avec les coûts Azure du document 06
 
-## 8. Distinction entre coûts ponctuels et récurrents
+Le document `06_dimensionnement_couts_azure_partie2.md` conserve les **enveloppes budgétaires de simulation non vérifiées par Microsoft** suivantes :
 
-- **Coûts ponctuels de lancement :** 89 360 € de charge interne estimée + dépenses cloud de construction/expérimentation à chiffrer.
-- **Coûts récurrents après stabilisation :** 6 560 € par mois de charge interne Run (hypothèse) + Azure et outils facturés à l'usage ou à la capacité.
-- **Non inclus :** développement mobile, création des comptes, e-commerce, publicité et autres coûts métier hors périmètre Data/IA.
+| Poste | Estimation de travail |
+|---|---:|
+| Coût humain PoC + MVP + Run initial | **89 360 €** |
+| Azure de lancement (3 + 10 + 4 semaines) | **3 600 €** |
+| **Total lancement Data/IA** | **92 960 €** |
+| Run humain après stabilisation | **6 560 €/mois** |
+| Azure Run central simulé | **1 800 €/mois** |
+| **Total Run central** | **8 360 €/mois, soit 100 320 €/an** |
 
-## 9. Points à valider avant intégration définitive au COMEX
+Les enveloppes Azure **ne constituent pas un devis** et peuvent évoluer après choix région/SKU/CPU/GPU, niveau de service, politique de stockage, latence et disponibilité. Les calculs humains sont arithmétiquement cohérents avec les coûts journaliers fournis ; la pertinence des affectations reste à confirmer.
 
-1. Valider la disponibilité des 7 collaborateurs aux périodes prévues.
-2. Faire approuver le découpage des 246 JH et le périmètre fonctionnel du MVP.
-3. Confirmer que les coûts salariaux sont la bonne convention pour l'analyse économique.
-4. Chiffrer Azure à partir de scénarios de charge explicites et de tarifs régionaux actuels.
-5. Pour le ROI, distinguer **chiffre d'affaires additionnel**, **marge générée** et **coûts complets** ; ne pas assimiler directement une hausse de CA à un bénéfice.
+**Ne pas double compter** le Run initial (S14–S17) lors du passage du budget de lancement à l'année de Run récurrent. L'essayage virtuel génératif et le développement mobile ne sont pas couverts par ces montants.
+
+## 10. Implications pour l'étude de rentabilité
+
+Le document 07 doit :
+
+1. répartir les coûts **dans le temps** (PoC/MVP/Run initial, puis Run récurrent proratisé) ;
+2. comparer les **gains attribuables au projet** aux coûts Data/IA, sans confondre chiffre d'affaires et marge ;
+3. appliquer de façon cohérente une éventuelle **marge contributive hypothétique** (par exemple 30 %, **non fournie par Alicia**) ;
+4. identifier explicitement le périmètre financier **partiel** de l'analyse (hors application mobile, acquisition clients et essayage génératif) ;
+5. proposer des tests de sensibilité : montée en charge, coûts de serving, maintien en conditions opérationnelles, baisse des performances du modèle et réduction des gains.
+
+**Rappel métier :** les prévisions Marketing visent à 24 mois **+14 % du CA web** et **+4 % du CA magasins** à partir des bases annuelles de **5,2 M€** chacune : soit **936 000 € de CA additionnel annuel à l'horizon de 24 mois**, et **non** 936 000 € de bénéfice annuel immédiat.
+
+## 11. Gouvernance, risques et décisions ouvertes
+
+| Décision/risque | Propriétaire proposé | À confirmer |
+|---|---|---|
+| Disponibilité des 7 professionnels et autres engagements | Tech Lead + responsables d'équipe | Planning et disponibilité nominative |
+| Validation des caractéristiques de style et des seuils qualité | Alicia + représentants métier + DS | Ground truth, P@5, Success@5 |
+| Fréquence d'actualisation et fraîcheur du catalogue | DE + responsable catalogue | SLA de mise à jour, données sources |
+| Dimensionnement online, sécurité et autoscaling | MLOps + TL | SLA/latence et mesures de charge |
+| Protection des photographies et purge | DE + référent RGPD | Finalité, base légale, conservation, suppression |
+| Vérification des coûts cloud et FinOps | MLOps + TL + finance | SKU/région/tarifs Azure contractuels |
+| Marge contributive et conventions ROI | Alicia + finance | Marge, montée en charge et coûts hors Data/IA |
+| Extension essayage virtuel | Product + TL + DS | Étude séparée, données, faisabilité, budget |
+
+## 12. Conclusion pour la soutenance
+
+Nous proposons **246 JH sur 17 semaines** pour construire et stabiliser la solution **Data/IA** : **30 JH PoC**, **180 JH MVP**, **36 JH Run initial**, valorisés au total **89 360 €** avec les tarifs salariaux Fashion-Insta. Le **Run récurrent** mobiliserait ensuite **18 JH/mois**, soit **6 560 €/mois** de coût humain simulé.
+
+Ces charges couvrent l'**ingestion et la qualité des données, les embeddings catalogue batch, l'inférence interactive online, la maintenance, la sécurité, l'observabilité et la gouvernance technique**. Elles excluent le développement mobile et les fonctions avancées non arbitrées. Le dimensionnement exact reste conditionné aux usages mesurés et aux exigences de service. Le budget Azure et la projection de rentabilité sont distingués dans les documents 06 et 07.
 
 ---
 
-*Document de travail — Partie 2 du P11 Fashion-Insta. Estimations non contractuelles, non validées par Fashion-Insta.*
+**Sources internes :** `sources/P11_Profils_Data.pdf` ; dossier `docs/` (documents 01 à 07).  
+*Version révisée du document 05 — cadrage Fashion-Insta, Partie 2. Hypothèses de charges non validées, aucune dépense engagée.*

@@ -1,6 +1,6 @@
 # P11 — Partie 2 : dimensionnement et chiffrage de l'infrastructure Azure
 
-**Version révisée — cohérente avec `03_approches_techniques_poc.md` (architecture hybride batch + online).**
+**Version consolidée — architecture hybride batch + online, scalabilité, tests de charge et garde-fous FinOps ; cohérente avec `03_approches_techniques_poc.md`.**
 
 **Entreprise :** Fashion-Insta  
 **Mission :** Réalisez le cadrage d'un projet IA — Partie 2  
@@ -16,7 +16,7 @@ Ce document doit permettre au COMEX de comprendre :
 
 1. Les composants Azure correspondant aux besoins métier et leurs principaux facteurs de coût.
 2. **Pourquoi préparer le catalogue en batch** et **pourquoi servir les recommandations en online**.
-3. Le lien entre les **400 000 utilisateurs annuels prévus** par le marketing, la capacité requise et les coûts de service.
+3. Le lien entre les **400 000 utilisateurs annuels prévus** par le marketing, la capacité requise, la montée en charge et les coûts de service.
 4. Les dépenses **ponctuelles (construction/lancement)** et **récurrentes (Run)**.
 5. Les données chiffrées qui alimenteront ultérieurement le **modèle de rentabilité/ROI**.
 
@@ -59,6 +59,22 @@ Dans le scénario central :
 - Un **coefficient hypothétique de pointe ×20** donne **≈ 1,27 requête/seconde**. Ce n'est qu'un test de sensibilité, pas une mesure de pic réel.
 
 **Attention :** même des moyennes modestes peuvent cacher de fortes pointes pendant les campagnes marketing. Le dimensionnement final nécessite une distribution horaire, un objectif de latence p95, une disponibilité cible et des tests de charge. La capacité ne peut pas être déduite de la seule moyenne annuelle.
+
+### 2.1. Scénario complémentaire : trafic concentré sur huit heures par jour
+
+Pour éviter de sous-estimer les pointes, on conserve la moyenne annuelle **0,0634 req/s**, et on ajoute un **autre scénario fictif, non cumulable automatiquement** : toutes les 2 000 000 demandes annuelles seraient distribuées uniformément sur **8 heures d'activité par jour**, 365 jours par an.
+
+- Débit pendant cette plage : `2 000 000 / (365 × 8 × 3 600) ≈ 0,190 req/s`.
+- Avec un multiplicateur de pointe **×20 appliqué à ce débit de huit heures** : `≈ 3,81 req/s`.
+- Le chiffre **3,81 req/s** est donc différent de **1,27 req/s** (pointe ×20 sur la moyenne 24 h/24) : ils représentent **deux profils temporels alternatifs**, et non des prévisions observées.
+
+| Hypothèse de répartition | Débit de base | Pointe de sensibilité ×20 |
+|---|---:|---:|
+| Moyenne 24 h/24 | ≈ 0,063 req/s | ≈ 1,27 req/s |
+| Activité concentrée sur 8 h/jour | ≈ 0,190 req/s | ≈ 3,81 req/s |
+
+Une campagne, une promotion ou une concentration sur quelques minutes peut provoquer un pic supérieur à ces deux scénarios. **Le nombre d'utilisateurs annuels ne permet pas d'en déduire le nombre de sessions simultanées.** On demandera au Product/Marketing une distribution horaire et saisonnière pour fixer les valeurs à tester.
+
 
 ## 3. Catalogue, photographies et stockage
 
@@ -127,6 +143,25 @@ L'API métier, l'application et les comptes figurent comme interfaces et dépend
 | Réseau et données sortantes | **Services réseau Azure** | Transferts, trafic inter-régions, réseau privé éventuel | Respect de la région et des coûts réseau |
 
 **Choix d'architecture, et non cumul automatique des services :** Azure AI Search peut être inutile si une recherche exhaustive très simple satisfait le besoin et la latence. Un service à la demande de type Azure Container Apps peut être testé pour certaines inférences en alternative au managed online endpoint, sous réserve de compatibilité avec le modèle et des exigences de latence. **On ne facture pas les deux variantes simultanément pour la même charge.**
+
+### 4.3. Architecture évolutive, disponibilité et incidents (proposition à valider)
+
+| Zone de la chaîne | Disposition proposée | Limite ou décision à vérifier |
+|---|---|---|
+| API IA / photos utilisateurs | Contrôle de taille et de format, authentification déjà gérée côté produit, quotas/limitation de débit à l'interface | Ne pas chiffrer le développement mobile ; clarifier qui porte la passerelle/API et son exploitation |
+| Inférence online Azure ML | **Autoscaling Azure Monitor** fondé sur charge CPU ou métriques de déploiement ; minimum et maximum d'instances à fixer | La montée en charge a un délai ; quotas VM/GPU, CPU/RAM, concurrence et latence p95 à mesurer |
+| Index/catalogue | Embeddings **pré-calculés en batch**, versionnés ; index publié après contrôles puis remplacé sans interruption si réalisable | Maintenir un dernier index valide ; ne pas proposer des références retirées du catalogue |
+| Flux batch | Jobs déclenchés par modifications, planification ou événements ; reprise après échec et journal d'exécution | Files/événements et mécanismes de reprise à spécifier selon la source ; pas de recalcul général systématique |
+| Fonctions lourdes non interactives | File asynchrone **optionnelle** (p. ex. Azure Service Bus) pour traitements longs tels que génération d'essayage, si retenue | Ne pas mettre la recommandation Top 5 synchrone derrière une file dont la latence serait incompatible avec l'expérience souhaitée |
+| Observabilité et fiabilité | Azure Monitor/Application Insights : p50/p95, erreurs, rejets `429`, débit, occupation des instances, fraîcheur index et coût | Alarmes, tests de reprise, logs sans photos client ; définir des seuils et une astreinte de Run adaptés |
+| Données personnelles | Rétention justifiée, purge Blob/métadonnées/index/caches, traçabilité des suppressions | Valider bases légales, délais, responsabilité du parcours de suppression RGPD |
+
+**SLO indicatifs pour organiser les tests, non approuvés par Fashion-Insta :** p95 de réponse au Top 5 **≤ 3 secondes** et disponibilité mensuelle **≥ 99,5 %**. Les valider avec Alicia en confrontant les résultats aux contraintes réelles de l'application. Aucun SLA contractuel ne peut être déduit de ces valeurs.
+
+**Stratégie de dégradation :** si l'encodage online ne répond plus, préférer une réponse explicite/reprise contrôlée ou, si le métier le valide, une recherche simple par tags. Ne pas inventer des recommandations IA ni réutiliser des photos clientes hors de leur finalité. Pour une montée en charge trop rapide, prévoir limitation de débit et politique de nouvelle tentative avec temporisation, sans boucle de relance illimitée.
+
+**Remarque sur Azure ML :** la documentation Microsoft décrit l'autoscaling des endpoints online gérés via Azure Monitor, ainsi que des rejets `429` lorsque trop de requêtes sont en attente. Un autoscaler ne constitue donc pas, à lui seul, une garantie d'absence de saturation.
+
 
 ## 5. Justification détaillée — pourquoi batch pour le catalogue et online pour l'utilisateur ?
 
@@ -212,6 +247,20 @@ Cet ordre de grandeur illustre un **anti-pattern** (ne pas recourir au pré-calc
 
 **Règle de décision :** choisir le batch pour les travaux différables si les coûts totaux et les délais de mise à jour respectent les besoins ; retenir l'online pour les appels exigeant une réponse interactive, puis optimiser le matériel et le déploiement sur la base des tests.
 
+### 5.6. Dimensionnement du service online à partir de mesures (pas d'instances arbitraires)
+
+Le nombre d'instances ne doit pas être déduit directement des 400 000 utilisateurs annuels. Pour chaque taille CPU/GPU envisagée :
+
+1. Mesurer expérimentalement le **débit soutenable par instance** en requêtes/seconde, en respectant le p95 visé, la mémoire et le taux d'erreurs.
+2. Retenir un **facteur d'utilisation cible** inférieur à 100 % (ex. **70 %**, hypothèse de sécurité technique).
+3. Estimer une première borne de capacité à une pointe : `instances ≈ plafond(débit_de_pointe / (débit_mesuré_par_instance × utilisation_cible))` ; ajouter si nécessaire une exigence de redondance/disponibilité.
+4. Tester les limites de concurrence par instance, le temps de démarrage, les quotas et la réponse du système à une campagne soudaine.
+
+**Exemple fictif de méthode (et non dimensionnement retenu)** : si un benchmark mesure **2 req/s par instance** à une latence satisfaisante, et que l'on teste **3,81 req/s**, avec **70 % d'utilisation cible**, `plafond(3,81 / (2 × 0,70)) = 3 instances`. Ce résultat n'est **pas une recommandation de déployer trois instances** : les 2 req/s, la forme du pic et les seuils sont supposés. L'instance et le modèle doivent d'abord être benchmarkés.
+
+Le coût de l'autoscaling dépendra du **temps réellement passé à chaque niveau** : `coût de calcul online = somme (nombre d'instances × heures au niveau × prix horaire du SKU)`, plus services associés. Une capacité minimale provisionnée peut rester facturée même hors trafic. Le budget online simulé de **700 €/mois** en section 8 doit être **recalculé** si le minimum, les pics ou le SKU retenus ne sont pas compatibles avec cette enveloppe.
+
+
 ### 5.5. Mesures minimales à obtenir avant le COMEX ou à inscrire comme conditions du MVP
 
 1. **Catalogue :** nombre d'images réellement traitées, modifications/semaine, durée moyenne et p95 des jobs batch.
@@ -282,6 +331,18 @@ Si une recherche exhaustive satisfait les besoins, l'enveloppe **Azure AI Search
 | Plus forte disponibilité / usage | 4 000 € | 48 000 € |
 
 Ces enveloppes doivent évoluer si les usages réels ou les services avancés (essayage génératif) sont intégrés.
+
+### 8.1. Sensibilité aux pics et à la capacité minimale
+
+Le prix mensuel de la partie online dépend autant des **heures d'instances provisionnées** que du volume moyen d'appels. Pour éviter de donner une fausse précision :
+
+- **Charge minimale 24 h/24** : `n_min × 730 h × tarif horaire instance` (approximation mensuelle) ; à confronter aux besoins de disponibilité.
+- **Renforts de pointe** : `Σ(instances additionnelles × heures réellement allouées × tarif horaire)` ; inclure le temps de démarrage/descente observé.
+- **Coûts connexes** : recherche, stockage, logs et réseau peuvent augmenter même si le prix par instance reste identique.
+- **Limite actuelle du scénario central** : la provision Azure online de **700 €/mois** n'est ni reliée à un SKU vérifié ni à une politique min/max d'instances. Elle ne démontre **pas** que les pics x20 seront absorbés dans cette enveloppe.
+
+Pour le dossier COMEX, conserver **1 800 €/mois** comme **scénario illustratif**, mais présenter au minimum une variante capacité minimale, une variante campagnes/pics, et l'impact financier du service à faible latence. **Aucune économie liée au batch ne doit être soustraite une deuxième fois aux coûts Azure ni aux calculs de ROI existants.**
+
 
 ## 9. Vision consolidée : coûts Data/IA de construction et de Run
 
@@ -364,6 +425,20 @@ Mesures de maîtrise des coûts :
 9. **ROI** : courbe réelle de gains, marge contributive, coûts non Data/IA à présenter comme limites de l'étude.
 10. **Évaluation** : expérimentation réelle batch/online, latence, coût de calcul par lot et par requête.
 
+### 12.1. Plan de tests de charge et de robustesse à faire valider
+
+| Test | Charge et situation | Mesures / résultat attendu |
+|---|---|---|
+| Référence | Trafic faible et stable | p50/p95, débit, mémoire CPU/GPU, coût de base et qualité du Top 5 |
+| Montée en charge | Paliers progressifs : environ 1×, 5× et 20× le débit de référence choisi | p95, 429/5xx, seuils de scale-out, limites d'instances et retour à la normale |
+| Pic soudain | Hausse brutale simulant une campagne marketing | Temps d'activation des instances, rejets, stabilité et comportement de repli |
+| Mise à jour catalogue | Ajout, retrait et modification de références pendant les requêtes | Actualisation de l'index, cohérence Top 5 et absence de références retirées |
+| Incident | Échec d'un job batch, indisponibilité d'index/instance, retries | Reprise, supervision, dernier index sain et absence de données perdues |
+| Vie privée | Suppression d'une photo/garde-robe autorisée | Effacement conforme aux règles définies dans Blob/métadonnées/index/caches ; pas de photo dans les logs |
+| Coûts | Comparer journée calme, pic et job batch d'actualisation | Ventilation Azure par brique, estimation mensuelle et coût par recommandation |
+
+**Critères de passage proposés pour le MVP → Run :** seuils métier P@5/Success@5 confirmés ; p95 et disponibilité conformes aux SLO validés ; contrôle des `429`/5xx ; index cohérent ; mécanismes RGPD testés ; facture Azure estimée avec un SKU/région vérifiables ; capacité de reprise démontrée. **Ces critères restent à faire approuver** par Alicia et le Tech Lead.
+
 ## 13. Sources et traçabilité
 
 **Concordance avec la nouvelle version du document 03 :** l'approche A (CLIP/OpenCLIP ou modèle compatible) reste la référence ; l'approche B vision-langage est le comparateur possible. Toutes deux peuvent préparer les attributs et images catalogue en **batch**. En production, une **nouvelle** photo doit être analysée **online** pour une expérience interactive. Le PoC peut simuler ce traitement hors ligne pour mesurer la qualité, sans endpoint online permanent. Les seuils **Precision@5 ≥ 60 %** et **Success@5 ≥ 80 %** restent des hypothèses métier à confirmer.
@@ -385,7 +460,10 @@ Mesures de maîtrise des coûts :
 - [API Azure Retail Prices](https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices).
 - [Azure AI Search — comparaison des algorithmes de recherche vectorielle](https://learn.microsoft.com/en-us/azure/search/vector-search-ranking).
 - [Azure Cost Management — budgets et alertes](https://learn.microsoft.com/fr-fr/azure/cost-management-billing/costs/cost-mgt-alerts-monitor-usage-spending).
+- [Azure Machine Learning — Autoscale online endpoints via Azure Monitor](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-autoscale-endpoints?view=azureml-api-2).
+- [Azure Machine Learning — Résoudre les saturations et erreurs 429](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-troubleshoot-online-endpoints).
+- [Azure Machine Learning — Gestion et optimisation des coûts](https://learn.microsoft.com/en-us/azure/machine-learning/how-to-manage-optimize-cost?view=azureml-api-2).
 
 ---
 
-**Synthèse pour la soutenance :** nous défendons une **architecture hybride**. Le **batch** prépare et actualise les données et embeddings du catalogue à la cadence utile ; l'**online** répond aux nouvelles photos des clients. Cette séparation répond aux exigences métier et **peut réduire les heures de calcul dédiées aux travaux différables**, mais le gain monétaire doit être confirmé par des paramètres Azure vérifiables. Les chiffres de ce document constituent une **base de scénario**, non un budget final approuvé.
+**Synthèse pour la soutenance :** nous défendons une **architecture hybride et dimensionnée par tests de charge**. Le **batch** prépare et actualise les données et embeddings du catalogue à la cadence utile ; l'**online** répond aux nouvelles photos des clients. Cette séparation répond aux exigences métier et **peut réduire les heures de calcul dédiées aux travaux différables**, mais le gain monétaire doit être confirmé par des paramètres Azure vérifiables. Les chiffres de ce document constituent une **base de scénario**, non un budget final approuvé.
