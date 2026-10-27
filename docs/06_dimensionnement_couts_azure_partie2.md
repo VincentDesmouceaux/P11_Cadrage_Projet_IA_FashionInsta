@@ -44,6 +44,8 @@ Le périmètre complet de l'entreprise comprend davantage que le PoC. **L'essaya
 
 L'étude marketing prévoit **400 000 personnes utilisant l'application au moins une fois par an** à terme. Ce chiffre n'est **ni un volume d'utilisateurs mensuels actifs, ni un nombre de requêtes par jour**.
 
+Le même document métier mentionne **950 000 visiteurs uniques du site e-commerce par an**, ainsi que **11 magasins physiques**. Le volume de visiteurs web est un contexte commercial, **pas** un taux d'adoption de l'application ni une mesure de trafic d'inférence ; on ne le multiplie pas par les requêtes supposées sans modèle de conversion validé. Les quelques dizaines de milliers d'utilisateurs très actifs prévus par le Marketing justifient des tests de concentration de trafic. 
+
 Pour dimensionner un premier scénario, on suppose **une photo transmise et une recherche de recommandations par requête**.
 
 | Scénario | Demandes par utilisateur/an | Demandes/an | Moyenne par mois |
@@ -247,7 +249,7 @@ Cet ordre de grandeur illustre un **anti-pattern** (ne pas recourir au pré-calc
 
 **Règle de décision :** choisir le batch pour les travaux différables si les coûts totaux et les délais de mise à jour respectent les besoins ; retenir l'online pour les appels exigeant une réponse interactive, puis optimiser le matériel et le déploiement sur la base des tests.
 
-### 5.6. Dimensionnement du service online à partir de mesures (pas d'instances arbitraires)
+### 5.5. Dimensionnement du service online à partir de mesures (pas d'instances arbitraires)
 
 Le nombre d'instances ne doit pas être déduit directement des 400 000 utilisateurs annuels. Pour chaque taille CPU/GPU envisagée :
 
@@ -261,7 +263,7 @@ Le nombre d'instances ne doit pas être déduit directement des 400 000 utilisat
 Le coût de l'autoscaling dépendra du **temps réellement passé à chaque niveau** : `coût de calcul online = somme (nombre d'instances × heures au niveau × prix horaire du SKU)`, plus services associés. Une capacité minimale provisionnée peut rester facturée même hors trafic. Le budget online simulé de **700 €/mois** en section 8 doit être **recalculé** si le minimum, les pics ou le SKU retenus ne sont pas compatibles avec cette enveloppe.
 
 
-### 5.5. Mesures minimales à obtenir avant le COMEX ou à inscrire comme conditions du MVP
+### 5.6. Mesures minimales à obtenir avant le COMEX ou à inscrire comme conditions du MVP
 
 1. **Catalogue :** nombre d'images réellement traitées, modifications/semaine, durée moyenne et p95 des jobs batch.
 2. **Service online :** temps de réponse p50/p95, débit, erreurs, taux de disponibilité et capacité minimale.

@@ -100,3 +100,20 @@ Les photos de test ne sont **pas annoncées comme déjà disponibles**. Il faudr
 **Nous recommandons un PoC de recommandation par similarité visuelle limité aux pantalons et jeans, sur un extrait de catalogue de 120 références, avec une évaluation sur un jeu de photographies de test distinct.**
 
 Ce périmètre vise à établir rapidement si la fonctionnalité centrale a une valeur démontrable, avant toute décision de développement d'une application mobile complète.
+
+
+## 9. Articulation avec l'expression de besoins complète (Partie 2)
+
+La solution complète vise **875 références sur neuf catégories** et couvre les cinq styles de l'entreprise (essentiel urbain, casual chic, professionnel moderne, streetwear et bohème féminin). Le choix de **120 pantalons et jeans** est un *périmètre expérimental*, non une réduction définitive de la roadmap. Les **950 000 visiteurs web annuels**, les **11 magasins** et les **400 000 utilisateurs annuels prévisionnels de l'application** décrivent trois aspects distincts du marché et ne déterminent pas, sans hypothèses, le volume de requêtes IA.
+
+| Besoin de la solution cible | Décision de périmètre pour ce PoC | Suite du programme |
+|---|---|---|
+| Moteur image → recommandations | **Tester** : Top 5 / catalogue pantalons-jeans | Étendre au catalogue actif après validation |
+| Compte nominatif, capture et garde-robe | Non réalisé | Intégration Software et gestion sécurisée des photos |
+| Préférences de styles et marques | Non personnalisé dans le PoC | Filtrage/reranking au MVP envisagé |
+| Blogs, sites et influenceurs | Non testé | Exploration des sources autorisées et fraîcheur des tendances |
+| Feedback utilisateur | Jugement métier des résultats pendant les essais | Collecte de feedback dans le pilote de production |
+| Essayage virtuel et modification de couleurs/coupes | Non réalisé | Étude générative distincte, chiffrage spécifique |
+| Désinscription, accès, rectification, suppression, rétention et purge | Protection et suppression des **photos de test** | Fonctionnement complet à définir avec le DPO |
+
+Le détail des fonctions cible et les informations chiffrées de l'entreprise sont centralisés dans `01_analyse_besoins_metier.md`. L'équipe Data/IA ne chiffre pas le frontend ou l'acte d'achat, conformément au périmètre de la Partie 2.

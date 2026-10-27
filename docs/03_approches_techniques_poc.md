@@ -40,6 +40,12 @@ Les paramètres du PoC ne doivent pas être confondus avec ceux du futur systèm
 
 Pour chaque photographie, retourner un **Top 5 ordonné de références uniques**. La définition de « même style » devra être coconstruite avec les métiers : coupe, matière, silhouette, formalité, motifs et couleur. La proximité de couleur **ne suffit pas**, à elle seule, à démontrer une recommandation stylistique pertinente.
 
+### 2.4. Styles métier et pertinence : référentiel de départ
+
+Fashion-Insta communique **cinq styles** à conserver comme vocabulaire contrôlé initial : **essentiel urbain**, **casual chic**, **professionnel moderne**, **streetwear** et **bohème féminin**. Ils ne constituent pas des étiquettes de vérité terrain automatiquement fiables : les deux évaluateurs métier devront définir comment ils se manifestent dans les pantalons/jeans, et tenir compte aussi de la coupe, de la silhouette, des motifs, de la matière apparente et de la couleur.
+
+La qualité du PoC doit démontrer une valeur au-delà d'une comparaison mécanique des tags ; cette nomenclature ne modifie **ni les 120 références pilotes ni les seuils de Precision@5 et Success@5 proposés**. La gestion de marques, de tendances externes et d'essayage génératif reste un **besoin cible différé et non chiffré**. Voir `01_analyse_besoins_metier.md` pour la traçabilité métier.
+
 ## 3. Approche A — Embeddings visuels et similarité cosinus
 
 ### Principe

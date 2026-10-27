@@ -93,29 +93,30 @@ Les 40 photos constituent un **échantillon pilote**, pas une preuve statistique
 
 ## 4. Profils nécessaires et charge estimée
 
-**Hypothèse : 15 jours ouvrés de calendrier (environ trois semaines après validation du COMEX)**, avec des interventions partiellement parallèles.
+**Hypothèse : 15 jours ouvrés de calendrier (trois semaines après autorisation du COMEX)**, avec des tâches en parallèle. Cette répartition doit être **strictement cohérente avec le document 05, la timeline et le PowerPoint de la Partie 2**.
 
-| Profil | Responsabilités principales | Charge estimée |
-|---|---|---:|
-| **Chef de projet IA / Product** | Cadrage, coordination, arbitrages, jalons et restitution | **5 j-h** |
-| **Data Engineer** | Extraction, rapprochement des sources, contrôle qualité des données | **4 j-h** |
-| **Data Scientist / ML Engineer** | Préparation des données ML, comparaison des approches, mesures et analyse des erreurs | **12 j-h** |
-| **Ingénieur Cloud / Azure** | Accès aux ressources, environnement de test, sécurité et suivi des consommations | **3 j-h** |
-| **Expert métier (merchandising / e-commerce)** | Grille de pertinence, évaluations, interprétation et validation métier | **4 j-h** |
-| **Référent RGPD / sécurité** | Vérification du traitement des photos, accès, durée de conservation | **2 j-h** |
-| **Total prévisionnel** | | **30 jours-homme** |
+Les coûts salariaux journaliers des profils Data sont fournis par Fashion-Insta dans `sources/P11_Profils_Data.pdf`. Les experts métier, le Product et le DPO sont **consultés** pour rendre le PoC recevable, mais leurs jours-homme ne sont **pas ajoutés sans barème** au budget Data/IA de 30 JH. Leur contribution reste à organiser et à chiffrer séparément si un budget complet est demandé.
 
-**Interprétation :** 30 jours-homme représentent une **charge cumulée** répartie sur plusieurs personnes, **pas une durée de 30 jours ouvrés**. Le calendrier reste d'environ 15 jours ouvrés grâce au travail en parallèle.
+| Profil Data interne | Effectif disponible | Charge totale du profil pendant le PoC | Tarif salarial fourni | Coût imputé au PoC |
+|---|---:|---:|---:|---:|
+| **Data Scientist** | 3 | **16 JH** | 350 €/JH | **5 600 €** |
+| **Data Engineer** | 2 | **6 JH** | 370 €/JH | **2 220 €** |
+| **Tech Lead Data** | 1 | **4 JH** | 400 €/JH | **1 600 €** |
+| **MLOps Engineer** | 1 | **4 JH** | 360 €/JH | **1 440 €** |
+| **Total Data/IA** | **7 personnes disponibles** | **30 JH** | — | **10 860 €** |
 
-Les **3 jours-homme déjà nécessaires à Fashion-Insta pour extraire les données des 875 références** constituent un repère historique ; ils ne remplacent pas l'estimation spécifique de **4 jours-homme** ici, qui inclut une extraction limitée, le rapprochement des images et les contrôles qualité.
+**Responsabilités :** DS = baseline sans IA, embeddings, métriques et analyse des erreurs ; DE = extraction, correspondance images/références, qualité ; Tech Lead = architecture, arbitrages, validation technique ; MLOps = environnement Azure expérimental, reproductibilité et suivi des consommations. Les deux évaluateurs métier définissent et appliquent la grille de pertinence, avec l'appui d'Alicia ; les fonctions Software et DPO sont associées aux interfaces et aux contrôles.
 
-### 4.1. Budget : méthode de calcul
+Le repère historique de **3 jours-homme de Data Engineer** concerne l'extraction des informations sur **toutes les 875 références** et n'est ni un délai garanti ni une charge à additionner aux **6 JH prévus** pour le PoC.
 
-Aucun tarif journalier n'étant fourni dans l'énoncé, **ne pas présenter de montant en euros comme un coût connu**. Le budget peut être complété après validation des TJM ou coûts internes :
+### 4.1. Budget et convention de périmètre
 
-**Coût des ressources humaines = somme (jours-homme par profil × coût journalier du profil).**
+- **Ressources Data/IA du PoC : 10 860 €**, calculées sur les **tarifs salariaux officiels fournis**, sous réserve de validation des affectations. Il s'agit d'une valorisation des ressources internes, pas nécessairement d'un coût de trésorerie nouveau.
+- **Azure PoC : 400 €**, **enveloppe de simulation** issue du document 06, sans devis Microsoft vérifié.
+- **Coût de cadrage PoC Data/IA : 11 260 €**, estimation de travail hors temps des experts métier, développement mobile et autres coûts non documentés.
+- **Différence de périmètre** : trois semaines **avant** le COMEX concernent la préparation du cadrage ; trois semaines **après autorisation** concernent les essais du PoC.
 
-Ajouter séparément, si nécessaire, les consommations Azure (calcul, stockage, appels aux modèles) et une marge pour aléas. Les consommations réelles seront contrôlées pendant l'expérimentation.
+Les **30 JH** sont une charge cumulée, **pas** une durée de 30 jours ouvrés. Aucune ressource n'est réputée disponible à 100 % par défaut.
 
 ## 5. Planning prévisionnel du PoC
 
@@ -193,4 +194,4 @@ Si un ou plusieurs seuils ne sont pas atteints, **ne pas conclure automatiquemen
 
 ### Synthèse pour la future présentation COMEX
 
-**Nous proposons un PoC de recommandation visuelle ciblé sur 120 pantalons et jeans, exécuté sur Azure après accord du COMEX, sur trois semaines de calendrier et pour une charge indicative de 30 jours-homme.** La faisabilité sera évaluée sur 40 photographies de test, avec une comparaison à une méthode sans IA. Les critères de réussite proposés sont une Precision@5 d'au moins 60 %, une Success@5 d'au moins 80 % et un gain d'au moins 10 points de Precision@5. Les résultats guideront une décision Go / No-Go ; aucun développement de l'application mobile complète n'est inclus.
+**Nous proposons un PoC de recommandation visuelle ciblé sur 120 pantalons et jeans, sur Azure après accord du COMEX, sur trois semaines de calendrier et pour une charge indicative de 30 jours-homme Data/IA (10 860 € internes + 400 € Azure hypothétiques).** La faisabilité sera évaluée sur 40 photographies de test, avec une comparaison à une méthode sans IA. Les critères de réussite proposés sont une Precision@5 d'au moins 60 %, une Success@5 d'au moins 80 % et un gain d'au moins 10 points de Precision@5. Les résultats guideront une décision Go / No-Go ; aucun développement de l'application mobile complète n'est inclus.

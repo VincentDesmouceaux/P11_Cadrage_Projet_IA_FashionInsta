@@ -21,6 +21,8 @@ Présenter au COMEX une projection sur plusieurs années afin d'identifier **si 
 
 **Interprétation :** les **936 000 €** représentent une *augmentation de chiffre d’affaires annualisée à l’horizon de 24 mois*, selon l'étude marketing. Ce n'est ni un encaissement immédiat, ni un bénéfice comptable, ni une performance démontrée du moteur IA. Les prévisions supposent également que les hausses web et magasin sont additionnelles, non comptées deux fois et attribuables au projet ; ces points restent à vérifier.
 
+**Contexte d'audience (non converti en gains) :** Alicia mentionne **950 000 visiteurs uniques du site web par an**, **11 magasins** et **400 000 utilisateurs de l'application au moins une fois par an à terme**, avec plusieurs dizaines de milliers d'utilisateurs particulièrement actifs. Ces données éclairent le potentiel et le trafic, mais elles ne permettent **pas** de déduire un taux d'adoption, une conversion ni des revenus additionnels distincts des **+14 % / +4 %** de l'étude Marketing. Les intégrer séparément aux gains du modèle risquerait de créer un **double comptage**.
+
 ## 3. Paramètres retenus pour la simulation centrale
 
 ### 3.1. Coûts Data/IA (issus des documents 05 et 06)
