@@ -3,3 +3,5 @@
 __pycache__/
 .DS_Store
 .env
+# Rapports d'audit et corrections OpenClassrooms
+REVUE_CORRECTIONS_CRITERES_MENTOR*.md

@@ -36,6 +36,22 @@ Les paramètres du PoC ne doivent pas être confondus avec ceux du futur systèm
 - Pour un premier test, recadrage manuel possible et documenté ; la détection/segmentation automatique n'est pas un prérequis du PoC.
 - Données acquises et traitées légalement ; privilégier les photographies sans visage ni informations personnelles inutiles.
 
+### 2.2 bis. Dataset externe candidat : DeepFashion2 (consumer-to-shop)
+
+**Jeu proposé pour la veille et la constitution des requêtes de test :** [DeepFashion2, dépôt des auteurs](https://github.com/switchablenorms/DeepFashion2). Ce dataset de recherche contient des vues de vêtements issues de **photos clients (« consumer »)** et de **photos commerciales (« shop »)**, avec notamment des classes proches de *trousers*, des boîtes englobantes et des indications d'appariement boutique/client (`pair_id`, `style`). Il est mieux aligné sur le contraste photo réelle / photographie e-commerce qu'un jeu composé uniquement de photos studio. **Il s'agit d'un candidat identifié, pas d'un dataset déjà téléchargé ou validé par Fashion-Insta.**
+
+**Protocole proposé :**
+
+1. Vérifier les **conditions d'accès, droits sur les photographies, licences et restrictions de réutilisation** auprès des détenteurs du dataset et du DPO. Une licence affichée sur un dépôt ou miroir ne suffit pas à établir les droits sur toutes les images. Ne pas diffuser ni intégrer les images aux livrables avant autorisation.
+2. Inspecter un petit échantillon de vêtements de classe « trousers » : vêtements portés/non portés, éclairages variés, fonds encombrés, poses et masquages. Vérifier la correspondance avec les cinq styles de Fashion-Insta, qui ne sont **pas** automatiquement les labels du dataset.
+3. Construire **environ 40 requêtes de test** distinctes des images catalogue, avec droits d'usage documentés. DeepFashion2 peut fournir des requêtes candidates ; les photos internes licites ou une collecte dédiée demeurent une alternative. Le DPO et les métiers doivent approuver la source réellement utilisée.
+4. Comparer chaque requête **aux 120 références Fashion-Insta**, non aux images externes du dataset comme si elles étaient le catalogue de l'entreprise. Faire confirmer par les experts métier qu'au moins une référence raisonnablement pertinente existe pour les cas de test retenus ; consigner aussi les cas hors catalogue.
+5. Éviter toute fuite de quasi-doublons ; tracer l'origine, les droits, les conditions de recadrage et le jugement métier des photos. Évaluer sur **les mêmes requêtes** la baseline par tags, CLIP/OpenCLIP et l'alternative multimodale.
+
+**Point de méthode :** les correspondances « même article » proposées dans DeepFashion2 ne sont pas équivalentes à une annotation « même style Fashion-Insta ». Les valeurs de Precision@5, Success@5 et l'écart face aux tags restent calculées sur des **jugements métier explicites**. L'échantillon limité ne démontre pas la performance en production.
+
+**Alternative externe :** [DeepFashion — Consumer-to-shop Clothes Retrieval](https://mmlab.ie.cuhk.edu.hk/projects/DeepFashion/Consumer2ShopRetrieval.html), sous réserve de ses **conditions de recherche non commerciale** et des droits sur les images. Ne pas le traiter comme une source libre pour un usage commercial sans autorisation écrite.
+
 ### 2.3. Sortie attendue
 
 Pour chaque photographie, retourner un **Top 5 ordonné de références uniques**. La définition de « même style » devra être coconstruite avec les métiers : coupe, matière, silhouette, formalité, motifs et couleur. La proximité de couleur **ne suffit pas**, à elle seule, à démontrer une recommandation stylistique pertinente.
@@ -112,6 +128,12 @@ Un modèle multimodal capable d'analyser les photographies (selon les offres acc
 | Choix pour le PoC | **Approche de référence proposée** | **Alternative à tester** |
 
 **Décision provisoire :** commencer par **A**, tester **B** si le budget et les accès le permettent, puis retenir une solution sur les **résultats d'évaluation**, et non sur la seule sophistication du modèle.
+
+### 5.1. Pourquoi retenir CLIP pour le PoC malgré les modèles multimodaux récents ?
+
+Les **Vision Transformers** de type CLIP/OpenCLIP font déjà partie des approches contemporaines de représentation visuelle ; le choix A n'est pas une méthode classique dépassée opposée à un LLM plus moderne. L'approche B, fondée sur un modèle vision-langage récent, apporte surtout une **extraction d'attributs interprétables**. Pour le PoC à 120 références et 40 requêtes, A est prioritaire pour sa simplicité, son absence d'entraînement initial et ses embeddings catalogue réutilisables. B est une alternative conditionnelle à tester, car elle peut mieux expliquer coupe et style, mais peut halluciner des attributs et nécessiter des appels plus coûteux. Les performances, latences et coûts de A et B sont **à mesurer**, non à présumer.
+
+Une méthode CNN + transfer learning peut servir de comparaison historique, mais elle impliquerait de choisir un backbone et de documenter ses besoins en données/entraînement ; nous ne l'ajoutons pas au périmètre court sans bénéfice mesuré. Décision Go/No-Go : métriques métier **et** comparaison à la baseline sans IA.
 
 ## 6. Choix d'architecture — démontrer pourquoi batch et online sont complémentaires
 
@@ -203,6 +225,16 @@ Exemple fictif : **2 req/s par instance**, **3,81 req/s** de pointe simulée et 
 
 Ces mécanismes doivent figurer dans le **System Design de production** et être traités dans les essais de robustesse décrits dans le document 06. Le chiffrage final dépend notamment du nombre minimal d’instances online et du coût des services de haute disponibilité ou de supervision effectivement retenus.
 
+### 6.7. Extension produit attendue : génération d'images / essayage virtuel (hors PoC)
+
+Le besoin d'afficher un vêtement sur une photographie utilisateur et d'en faire varier la couleur/le style justifie **une brique générative distincte** du moteur de similarité. **Option à étudier :** modèle de virtual try-on fondé sur la diffusion (famille Stable Diffusion ou équivalent adapté à la conservation du vêtement, de la pose et de l'identité visuelle) exécuté dans **Azure Machine Learning sur GPU** ; un endpoint d'un modèle « sold by Azure » autorisé constitue une alternative à contrôler avec le DPO. Un générateur d'images généraliste n'est **pas** une garantie de fidélité du produit ni un module d'essayage prêt à l'emploi.
+
+Flux cible : `photo (autorisée) + article sélectionné → Privacy Gateway (EXIF/masquage) → file de jobs/contrôle des quotas → service GPU de génération → contrôle sécurité/fidélité → image éphémère ou sauvegarde volontaire → purge`. Une exécution **asynchrone** est possible, car le temps de génération peut dépasser la latence du Top 5 ; vérifier avec Alicia la tolérance utilisateur.
+
+- **Données et confidentialité :** ne pas employer les photos clients pour entraîner ou fine-tuner un modèle sans décision dédiée ; contrôler la rétention des entrées, sorties, seeds, fichiers temporaires et logs ; ne pas communiquer les images à une API publique non approuvée.
+- **Évaluation :** fidélité de la référence et de sa couleur, conservation des traits non vestimentaires, artefacts, risque de génération trompeuse, délai de réponse et coût par image.
+- **Trajectoire :** prototype exploratoire **après** validation du PoC, décision Produit/DPO, puis service optionnel du MVP étendu ou évolution ultérieure. **Hors 30 JH du PoC, hors budget central 92 960 € / 100 320 €** ; scénarios détaillés dans `06_dimensionnement_couts_azure_partie2.md`.
+
 ## 7. Démonstration attendue : qualité, latence et coûts
 
 Aucune économie n'est **prouvée** tant que les charges réelles et le SKU Azure ne sont pas mesurés. Le protocole proposé comporte trois essais complémentaires :
@@ -292,6 +324,12 @@ Ces effectifs décrivent **l'équipe disponible**, non l'affectation à temps pl
 ## 12. Conclusion et sources techniques
 
 **Conclusion à défendre en soutenance :** pour Fashion-Insta, nous privilégions une **architecture hybride batch + online**. Les photographies et embeddings du catalogue, connus à l'avance, sont préparés et actualisés par jobs différables. La photographie envoyée par l'utilisateur est traitée à la demande pour renvoyer rapidement des recommandations. La décision vise à **éliminer les calculs redondants sans dégrader l'expérience client** et reste conditionnée à des tests de qualité, de latence, de montée en charge et de coûts. Les scénarios chiffrés et les règles de dimensionnement correspondants sont détaillés dans le document 06, sans présumer de performances mesurées.
+
+### Ressources complémentaires du cadrage
+
+- [DeepFashion2 — dataset, annotations et appariements shop / consumer](https://github.com/switchablenorms/DeepFashion2) : source candidate **non téléchargée ni approuvée**, vérifier les droits.
+- [DeepFashion consumer-to-shop](https://mmlab.ie.cuhk.edu.hk/projects/DeepFashion/Consumer2ShopRetrieval.html) : option de veille, conditions d'utilisation à vérifier.
+- [Microsoft Azure Machine Learning — tarification et compute](https://azure.microsoft.com/fr-fr/pricing/details/machine-learning/) : les GPU et autres ressources ont un coût selon région/SKU/usage.
 
 ### Sources officielles et documentation complémentaire
 

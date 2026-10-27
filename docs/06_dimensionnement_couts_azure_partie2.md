@@ -165,6 +165,24 @@ L'API métier, l'application et les comptes figurent comme interfaces et dépend
 **Remarque sur Azure ML :** la documentation Microsoft décrit l'autoscaling des endpoints online gérés via Azure Monitor, ainsi que des rejets `429` lorsque trop de requêtes sont en attente. Un autoscaler ne constitue donc pas, à lui seul, une garantie d'absence de saturation.
 
 
+### 4.4. Extension de production : IA générative d'images / essayage virtuel
+
+Les besoins d'Alicia incluent la **visualisation d'un vêtement sur une photo** et la modification de sa couleur ou de son style. La solution cible doit donc identifier une **brique de génération d'images distincte** de la recherche par similarité. Architecture de référence proposée :
+
+```text
+Top 5 / produit choisi + photo personnelle autorisée
+   → API Privacy Gateway : droits, taille, EXIF, recadrage/masquage
+   → File de jobs (Azure Service Bus, option) + quotas et suivi de statut
+   → Azure ML GPU privé : modèle de virtual try-on / diffusion à évaluer
+   → Modération et contrôle de fidélité du vêtement
+   → Blob de sortie temporaire, lien à durée limitée / sauvegarde choisie
+   → Purge des entrées, sorties, temporaires, caches et traces corrélées
+```
+
+**Alternative à évaluer** : service d'images managé vendu par Azure, **seulement** s'il permet ce cas d'usage et si ses conditions de traitement/stockage, régions et coûts sont compatibles. Ne pas supposer qu'une API d'image générique restitue fidèlement une référence Fashion-Insta. Une API publique non validée n'est pas le choix par défaut. **Pas d'entraînement de LLM/modèle de fondation sur les images clients.**
+
+Rôles : DS (validation fidélité/qualité et prompts), MLOps (serveur GPU, file, autoscaling et métriques), DE (cycle de vie/stockage/purge), Tech Lead (architecture et sécurité), DPO (base légale et fournisseurs). **Cette brique n'est ni développée ni budgétée dans le PoC initial.**
+
 ## 5. Justification détaillée — pourquoi batch pour le catalogue et online pour l'utilisateur ?
 
 ### 5.1. Les traitements n'ont pas la même exigence de latence
@@ -372,6 +390,29 @@ Ne pas **compter deux fois** les quatre semaines de Run initial : elles figurent
 - Effet d'une hausse du trafic, d'une conservation plus longue des photos et de la multiplication des environnements.
 - Coûts indirects non fournis dans le sujet (marges commerciales, acquisition clients, support métier, etc.) à discuter séparément du périmètre Data/IA.
 
+### 9.4. Chiffrage de sensibilité séparé — option de génération d'images
+
+**Objectif : rendre visible le risque économique d'une fonctionnalité demandée par Alicia, sans modifier fictivement le budget central de recommandation.** L'adoption de cette option et le nombre d'images sont **des hypothèses indépendantes** des cinq requêtes de recommandation par utilisateur retenues pour le moteur Top 5. Hypothèses à valider : 400 000 utilisateurs **annuels** à terme, un taux d'utilisation de la fonction de génération, un nombre d'images par utilisateur participant et un coût complet unitaire variable (GPU ou API, traitement et sorties).
+
+| Scénario génératif additionnel | Participants/an | Images/participant/an | Images/an | Coût variable *illustratif* / image | Frais fixes additionnels *illustratifs* / an | Enveloppe additionnelle / an |
+|---|---:|---:|---:|---:|---:|---:|
+| Bas (5 % des utilisateurs) | 20 000 | 2 | 40 000 | 0,10 € | 2 400 € | **6 400 €** |
+| Central option (20 %) | 80 000 | 3 | 240 000 | 0,15 € | 12 000 € | **48 000 €** |
+| Fort (40 %) | 160 000 | 4 | 640 000 | 0,30 € | 24 000 € | **216 000 €** |
+
+**Formule :** `coût option annuel = utilisateurs_annuels × taux_activation × générations_par_participant × coût_variable_image + frais_fixes_additionnels`. Les coûts par image et fixes ci-dessus sont **purement fictifs : ils ne correspondent à aucun tarif Azure, à aucun SKU ni à une performance GPU mesurée**. Les frais fixes devraient couvrir selon l'architecture retenue la capacité minimale, la file, les journaux techniques et la supervision ; les coûts opérationnels humains supplémentaires **ne sont pas nécessairement compris** et doivent être estimés avec le document 05. Les coûts variables devront être établis soit par **temps GPU mesuré par génération × prix horaire configuré**, soit par **tarif API effectif/image**, sans les additionner si ces options sont exclusives.
+
+| Situation budgétaire simplifiée après stabilisation | Data/IA hors génération/an | Génération illustrative/an | Total partiel/an (hors effort humain supplémentaire et mobile) |
+|---|---:|---:|---:|
+| Moteur de recommandation seul (scénario actuel) | 100 320 € | 0 € | **100 320 €** |
+| + génératif bas | 100 320 € | 6 400 € | **106 720 €** |
+| + génératif central option | 100 320 € | 48 000 € | **148 320 €** |
+| + génératif fort | 100 320 € | 216 000 € | **316 320 €** |
+
+**Ce ne sont pas les scénarios Azure déjà utilisés pour le trafic du Top 5** : une enveloppe Azure accrue à 4 000 €/mois pour le moteur et une option générative constituent deux hypothèses **distinctes**, à combiner uniquement dans un scénario complet explicite. Notre `07_analyse_roi_rentabilite_partie2.md` et le point mort en A2 restent valides **uniquement pour le périmètre de recommandation initial**. Si l'option générative est retenue, recalculer son ROI et les charges supplémentaires, ou évaluer sa rentabilité séparément ; ne pas recycler le graphique existant comme si ces coûts y figuraient.
+
+**Conditions de décision** : essai limité sur un modèle autorisé, temps GPU/image et p95 mesurés, qualité produit confirmée par le merchandising, quotas et région Azure validés, purge effective, revue DPO et avis Finance. Calculateur : https://azure.microsoft.com/fr-fr/pricing/calculator/ ; [Azure Machine Learning Pricing](https://azure.microsoft.com/en-us/pricing/details/machine-learning/).
+
 ## 10. Lien avec les prévisions de ventes et le futur ROI
 
 **Données issues de l'expression des besoins métier :**
@@ -440,6 +481,13 @@ Mesures de maîtrise des coûts :
 | Coûts | Comparer journée calme, pic et job batch d'actualisation | Ventilation Azure par brique, estimation mensuelle et coût par recommandation |
 
 **Critères de passage proposés pour le MVP → Run :** seuils métier P@5/Success@5 confirmés ; p95 et disponibilité conformes aux SLO validés ; contrôle des `429`/5xx ; index cohérent ; mécanismes RGPD testés ; facture Azure estimée avec un SKU/région vérifiables ; capacité de reprise démontrée. **Ces critères restent à faire approuver** par Alicia et le Tech Lead.
+
+### 12.2. Suivi des risques génératifs dans les arbitrages
+
+- **Compute / capacité :** GPU potentiellement coûteux, démarrage à froid, pics d'images et quota ; tester la mise en file et des plafonds de dépense.
+- **Storage :** images d'entrée/sortie potentiellement personnelles, TTL/effacement, nombre de versions et réseau sortant à mesurer séparément.
+- **Qualité commerciale :** images générées trompeuses si coupe, teinte ou détails du produit sont altérés ; validation métier avant pilote.
+- **Budget :** afficher comme **option séparée**, hors hypothèses de ROI central tant qu'un scénario de volume/prix n'est pas validé.
 
 ## 13. Sources et traçabilité
 
